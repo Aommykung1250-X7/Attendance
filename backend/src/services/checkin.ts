@@ -1,0 +1,116 @@
+// การเช็กชื่อของพนักงาน (spec หัวข้อ 8)
+
+import { and, eq, isNull } from 'drizzle-orm'
+import type { CheckInView } from '../contract.js'
+import { db, schema } from '../db/index.js'
+import type { EmployeeRow } from '../db/schema.js'
+import { loadDay, type InstanceRecord } from '../lib/day.js'
+import { selectShift } from '../lib/selection.js'
+import { isLate } from '../lib/status.js'
+import { localParts } from '../lib/time.js'
+
+/** ต้องมีอีเมลอยู่ในตารางพนักงานและยังไม่ถูกซ่อน ห้ามสร้างผู้ใช้ใหม่อัตโนมัติเด็ดขาด */
+export async function findActiveEmployee(email: string): Promise<EmployeeRow | null> {
+  const [e] = await db
+    .select()
+    .from(schema.employees)
+    .where(and(eq(schema.employees.email, email.toLowerCase()), eq(schema.employees.isActive, true)))
+  return e ?? null
+}
+
+interface ViewResult {
+  view: CheckInView
+  record: InstanceRecord | null
+  date: string
+}
+
+/**
+ * ตัดสินว่าจะแสดงหน้าไหน โดยใช้ "เวลาที่สแกน" เป็นเวลาอ้างอิง ไม่ใช่เวลาที่กลับมาจากหน้า Google
+ */
+export async function buildView(employee: EmployeeRow, scannedAt: Date): Promise<ViewResult> {
+  const { date, time } = localParts(scannedAt)
+  const nickname = employee.nickname
+  const { holiday, records } = await loadDay(date, { employeeId: employee.id })
+  if (holiday || records.length === 0) return { view: { kind: 'no_shift_today', nickname }, record: null, date }
+
+  const sel = selectShift(
+    records.map((r) => ({
+      shiftId: r.shift.id,
+      startTime: r.shift.startTime,
+      endTime: r.shift.endTime,
+      attended: !!r.attendance,
+      earlyLeft: !!r.attendance?.earlyLeaveAt,
+      override: r.override?.status ?? null,
+    })),
+    time,
+  )
+  const find = (id: string) => records.find((r) => r.shift.id === id)!
+
+  switch (sel.kind) {
+    case 'no_shift_today':
+    case 'all_done':
+      return { view: { kind: sel.kind, nickname }, record: null, date }
+    case 'too_early':
+      return { view: { kind: 'too_early', nickname, previousEndTime: sel.previousEndTime }, record: null, date }
+    case 'ready': {
+      const r = find(sel.shiftId)
+      return { view: { kind: 'ready', nickname, shift: r.row, scannedAt: time }, record: r, date }
+    }
+    case 'early_leave': {
+      const r = find(sel.shiftId)
+      return {
+        view: { kind: 'early_leave', nickname, shift: r.row, minutesRemaining: sel.minutesRemaining },
+        record: r,
+        date,
+      }
+    }
+  }
+}
+
+/** กดยืนยันเช็กชื่อ บันทึกเวลาที่สแกน ไม่ใช่เวลาที่กดปุ่ม */
+export async function confirmCheckIn(employee: EmployeeRow, scannedAt: Date): Promise<{ view: CheckInView; acted: boolean }> {
+  const current = await buildView(employee, scannedAt)
+  if (current.view.kind !== 'ready' || !current.record) return { view: current.view, acted: false }
+  const shift = current.record.shift
+
+  // unique (shift_id, date) กันการกดสองครั้ง ถ้าชนก็แค่ไม่บันทึกซ้ำ
+  await db
+    .insert(schema.attendance)
+    .values({ employeeId: employee.id, shiftId: shift.id, date: current.date, scannedAt, recordedBy: 'self' })
+    .onConflictDoNothing()
+
+  const { records } = await loadDay(current.date, { employeeId: employee.id })
+  const r = records.find((x) => x.shift.id === shift.id)!
+  const at = r.attendance?.scannedAt ?? scannedAt
+  return {
+    view: {
+      kind: 'done',
+      nickname: employee.nickname,
+      shift: r.row,
+      status: isLate(at, current.date, shift.startTime) ? 'late' : 'ontime',
+    },
+    acted: true,
+  }
+}
+
+/** แจ้งกลับก่อนเวลา เมื่อยืนยันแล้วกะนั้นถือว่าจบ สแกนกลับเข้ามาใหม่ไม่ได้ แก้ได้เฉพาะแอดมิน */
+export async function confirmEarlyLeave(employee: EmployeeRow, scannedAt: Date): Promise<{ view: CheckInView; acted: boolean }> {
+  const current = await buildView(employee, scannedAt)
+  if (current.view.kind !== 'early_leave' || !current.record) return { view: current.view, acted: false }
+  const shift = current.record.shift
+
+  await db
+    .update(schema.attendance)
+    .set({ earlyLeaveAt: scannedAt, earlyLeaveBy: 'self' })
+    .where(
+      and(
+        eq(schema.attendance.shiftId, shift.id),
+        eq(schema.attendance.date, current.date),
+        isNull(schema.attendance.earlyLeaveAt),
+      ),
+    )
+
+  const { records } = await loadDay(current.date, { employeeId: employee.id })
+  const r = records.find((x) => x.shift.id === shift.id)!
+  return { view: { kind: 'early_leave_done', nickname: employee.nickname, shift: r.row }, acted: true }
+}

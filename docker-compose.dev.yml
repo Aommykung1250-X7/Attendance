@@ -1,0 +1,15 @@
+# Postgres สำหรับพัฒนาบนเครื่องตัวเอง: docker compose -f docker-compose.dev.yml up -d
+name: attendance-dev
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: attendance
+      POSTGRES_USER: attendance
+      POSTGRES_PASSWORD: attendance
+    ports:
+      - '127.0.0.1:5433:5432'
+    volumes:
+      - dev-data:/var/lib/postgresql/data
+volumes:
+  dev-data:

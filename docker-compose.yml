@@ -1,0 +1,53 @@
+# รันทั้งระบบบน VPS:
+#   cp .env.production.example .env.production   # แล้วแก้ค่า
+#   docker compose --env-file .env.production up -d --build
+#
+# พอร์ตเปิดเฉพาะ 127.0.0.1 ให้ reverse proxy ของ VPS (nginx/Caddy ที่ทำ HTTPS) เป็นตัวเดียวที่เปิดออกอินเทอร์เน็ต
+
+name: attendance
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?ต้องตั้ง POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:?ต้องตั้ง POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?ต้องตั้ง POSTGRES_PASSWORD}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      APP_ORIGIN: ${DOMAIN_URL:?ต้องตั้ง DOMAIN_URL}
+      SESSION_SECRET: ${SESSION_SECRET:?ต้องตั้ง SESSION_SECRET}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?ต้องตั้ง GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?ต้องตั้ง GOOGLE_CLIENT_SECRET}
+      ADMIN_EMAILS: ${ADMIN_EMAILS:?ต้องตั้ง ADMIN_EMAILS}
+      QR_TOKEN_TTL_SECONDS: ${QR_TOKEN_TTL_SECONDS:-30}
+      COOKIE_SECURE: 'true'
+    ports:
+      # เปิดไว้ดู health เท่านั้น ใช้งานจริงผ่าน frontend
+      - '127.0.0.1:${BACKEND_PORT:-4802}:4802'
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '127.0.0.1:${FRONTEND_PORT:-4801}:80'
+
+volumes:
+  db-data:

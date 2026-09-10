@@ -1,0 +1,43 @@
+{
+  "name": "attendance-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/migrate.ts",
+    "db:seed": "tsx src/seed.ts",
+    "sync-types": "node scripts/sync-types.mjs"
+  },
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/multipart": "^10.1.1",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "0.45.2",
+    "exceljs": "^4.4.0",
+    "fastify": "^5.12.3",
+    "google-auth-library": "^10.9.1",
+    "pg": "^8.23.0",
+    "tsx": "^4.23.13"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "@types/pg": "^8.23.1",
+    "drizzle-kit": "0.31.10",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "packageManager": "pnpm@10.28.0"
+}

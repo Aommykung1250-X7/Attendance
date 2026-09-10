@@ -1,0 +1,111 @@
+@import 'tailwindcss';
+
+/*
+ * โทนของระบบ: กระดาษกับหมึก
+ * หน้าจอติดผนังเป็นพื้นหมึกเข้ม (อ่านจากระยะไกล) ส่วนมือถือและหน้าแอดมินเป็นพื้นกระดาษ
+ * สีสถานะมีสองชุด ชุดบนพื้นหมึกสว่างกว่าเพื่อให้อ่านออกบนพื้นเข้ม
+ */
+@theme {
+  --font-sans: 'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Anuphan', 'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #101a2b;
+  --color-ink-2: #16233a;
+  --color-ink-rule: #283752;
+  --color-chalk: #f4f1ea;
+  --color-chalk-dim: #97a3b8;
+
+  --color-paper: #f6f4ef;
+  --color-surface: #ffffff;
+  --color-sunken: #efece5;
+  --color-text: #141b26;
+  --color-text-dim: #5e6776;
+  --color-rule: #e3dfd6;
+  --color-rule-strong: #cfc9bd;
+
+  --color-accent: #101a2b;
+  --color-focus: #3a67d6;
+
+  --color-ontime: #1d7a4c;
+  --color-ontime-bg: #e3f2ea;
+  --color-late: #a85f00;
+  --color-late-bg: #fbeed9;
+  --color-absent: #b3261e;
+  --color-absent-bg: #f9e3e1;
+  --color-leave: #3b5998;
+  --color-leave-bg: #e5eaf6;
+  --color-pending: #6f7786;
+  --color-pending-bg: #ecebe7;
+
+  --animate-stamp: stamp 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-fade: fade 0.2s ease-out both;
+
+  @keyframes stamp {
+    from {
+      opacity: 0;
+      transform: scale(0.96) translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/* บนพื้นหมึก สีสถานะต้องสว่างขึ้น */
+.theme-ink {
+  --color-ontime: #63d69c;
+  --color-late: #f2b654;
+  --color-absent: #ff8f85;
+  --color-leave: #a3bbff;
+  --color-pending: #8e99ab;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-paper font-sans text-text antialiased;
+    font-feature-settings: 'kern';
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@utility display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+@utility tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility pb-safe {
+  padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
