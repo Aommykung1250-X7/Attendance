@@ -101,6 +101,8 @@ pnpm typecheck
 
 ## 4. Deploy บน VPS ด้วย Docker Compose
 
+> ขั้นตอนละเอียดตั้งแต่เช็กพอร์ตว่างบนเครื่องที่ใช้ร่วมกับโปรเจกอื่น อยู่ใน **[DEPLOY.md](DEPLOY.md)** และมีสคริปต์ตรวจเครื่อง `scripts/check-vps.sh`
+
 ```bash
 cp .env.production.example .env.production   # แก้ทุกค่า CHANGE_ME
 docker compose --env-file .env.production up -d --build
