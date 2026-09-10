@@ -1,5 +1,9 @@
 node_modules
 .env
 .env.*
+!.env.example
 test
+coverage
 *.log
+*.tsbuildinfo
+.DS_Store
