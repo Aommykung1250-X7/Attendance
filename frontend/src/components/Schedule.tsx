@@ -40,7 +40,9 @@ export function QuickShiftForm({
 
   // ส่งค่าเริ่มต้นให้ฟอร์มแม่ตั้งแต่เปิด
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => emit(), [])
+  useEffect(() => {
+    emit()
+  }, [])
 
   return (
     <div className="space-y-4">

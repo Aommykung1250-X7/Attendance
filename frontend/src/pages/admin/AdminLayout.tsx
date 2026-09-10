@@ -41,7 +41,11 @@ export default function AdminLayout() {
   }, [])
 
   // เลื่อนกลับขึ้นบนเมื่อเปลี่ยนหน้า
-  useEffect(() => window.scrollTo(0, 0), [location.pathname])
+  // ต้องมีวงเล็บปีกกา: Chrome รุ่นใหม่ให้ scrollTo คืน Promise ถ้าคืนค่าออกไป React จะเข้าใจว่าเป็นฟังก์ชัน cleanup
+  // แล้วเรียกมันตอนเปลี่ยนหน้า ทำให้หน้าพังด้วย "is not a function"
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
 
   if (state !== 'ok') {
     return (

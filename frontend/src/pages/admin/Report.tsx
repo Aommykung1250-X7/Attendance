@@ -37,7 +37,10 @@ export default function Report() {
   useEffect(() => {
     setFocus('all')
     setOpenDay(null)
-    if (!employeeId) return setReport(null)
+    if (!employeeId) {
+      setReport(null)
+      return
+    }
     setReport(null)
     api
       .report(employeeId, month)
