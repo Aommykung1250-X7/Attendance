@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { api, loginUrl, USE_MOCK } from '../../lib/api'
 import type { Me } from '../../lib/types'
 import { cx } from '../../components/ui'
+import { ErrorBoundary } from '../../components/ErrorBoundary'
 
 const NAV = [
   { to: '/admin', label: 'บันทึกประจำวัน', end: true, icon: 'M4 5h16M4 12h16M4 19h10' },
@@ -25,6 +26,7 @@ export default function AdminLayout() {
   const [me, setMe] = useState<Me | null>(null)
   const [state, setState] = useState<'loading' | 'login' | 'forbidden' | 'ok' | 'error'>('loading')
   const location = useLocation()
+  const [displayUrl, setDisplayUrl] = useState<string | null>(null)
 
   useEffect(() => {
     api
@@ -32,6 +34,8 @@ export default function AdminLayout() {
       .then((m) => {
         setMe(m)
         setState(m.isAdmin ? 'ok' : 'forbidden')
+        // ลิงก์หน้าจอ QR ไว้ที่เมนู จะได้ไม่ต้องเข้าหน้าตั้งค่าทุกครั้ง
+        if (m.isAdmin) api.settings().then((s) => setDisplayUrl(s.displayUrl)).catch(() => {})
       })
       .catch((e) => setState(e.status === 401 ? 'login' : 'error'))
   }, [])
@@ -99,6 +103,17 @@ export default function AdminLayout() {
               </NavLink>
             ))}
           </nav>
+          {displayUrl && (
+            <a
+              href={displayUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mx-3 mt-4 hidden min-h-10 items-center gap-3 rounded-lg border border-ink-rule px-3 text-[15px] text-chalk-dim hover:text-chalk lg:flex"
+            >
+              <Icon d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2" />
+              เปิดหน้าจอ QR ↗
+            </a>
+          )}
           <div className="mt-auto hidden border-t border-ink-rule px-6 py-5 lg:block">
             <p className="truncate text-[13px] text-chalk-dim" title={me?.email}>
               {me?.email}
@@ -110,7 +125,10 @@ export default function AdminLayout() {
         </div>
       </aside>
       <main className="mx-auto w-full max-w-[1180px] px-4 pt-6 pb-24 sm:px-6 lg:px-10 lg:pt-9">
-        <Outlet />
+        {/* หน้าไหนพัง เมนูยังใช้ได้ กดไปหน้าอื่นแล้วจะหายเอง */}
+        <ErrorBoundary resetKey={location.pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </div>
   )

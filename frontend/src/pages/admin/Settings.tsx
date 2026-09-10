@@ -38,14 +38,17 @@ export default function Settings() {
         <div className="grid gap-5 xl:grid-cols-2">
           <Card className="p-5">
             <h2 className="display text-lg font-semibold">หน้าจอในออฟฟิศ</h2>
-            <p className="mt-1 text-[15px] leading-relaxed text-text-dim">เปิดลิงก์นี้บนจอที่ติดผนังแบบเต็มจอ ไม่ต้องล็อกอิน คนนอกเดาลิงก์ไม่ได้เพราะมีรหัสสุ่มยาวต่อท้าย</p>
+            <p className="mt-1 text-[15px] leading-relaxed text-text-dim">
+              หน้าที่แสดง QR ให้พนักงานสแกน พร้อมนาฬิกาและรายชื่อของวันนี้ เปิดลิงก์นี้บนคอมหรือทีวีที่ต่อกับจอในออฟฟิศ
+              แล้วกดปุ่ม "เต็มจอ" มุมขวาล่าง ไม่ต้องล็อกอิน คนนอกเดาลิงก์ไม่ได้เพราะมีรหัสสุ่มยาวต่อท้าย
+            </p>
             <div className="mt-4 rounded-lg border border-rule bg-sunken px-3 py-2.5 font-mono text-[13px] break-all">{s.displayUrl}</div>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button size="sm" onClick={copy}>
                 คัดลอก
               </Button>
-              <a href={s.displayUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center rounded-lg border border-rule-strong bg-surface px-3 text-sm font-medium hover:bg-sunken">
-                เปิดหน้าจอ
+              <a href={s.displayUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center rounded-lg bg-ink px-3 text-sm font-medium text-chalk hover:bg-ink-2">
+                เปิดหน้าจอ QR ↗
               </a>
               <Button size="sm" variant="danger" onClick={() => setConfirmRotate(true)}>
                 สร้างลิงก์ใหม่

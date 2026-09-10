@@ -1,4 +1,5 @@
-import { BrowserRouter, Link, Route, Routes, useSearchParams } from 'react-router-dom'
+import { BrowserRouter, Link, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import CheckIn from './pages/CheckIn'
 import Kiosk from './pages/Kiosk'
 import AdminLayout from './pages/admin/AdminLayout'
@@ -15,6 +16,15 @@ import { loginUrl } from './lib/api'
 export default function App() {
   return (
     <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
+  )
+}
+
+function AppRoutes() {
+  const location = useLocation()
+  return (
+    <ErrorBoundary full resetKey={location.pathname}>
       <Routes>
         <Route path="/display/:displayKey" element={<Kiosk />} />
         <Route path="/checkin" element={<CheckIn />} />
@@ -32,7 +42,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="*" element={<Plain title="ไม่พบหน้านี้" body="ลิงก์อาจพิมพ์ผิดหรือถูกเปลี่ยนแล้ว" />} />
       </Routes>
-    </BrowserRouter>
+    </ErrorBoundary>
   )
 }
 

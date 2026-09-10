@@ -69,6 +69,8 @@ export default function Kiosk() {
   }, [board])
 
   const clock = useMemo(() => bangkok(now), [now])
+  const fullscreen = useFullscreen()
+  useWakeLock()
 
   return (
     <div className="theme-ink min-h-dvh bg-ink text-chalk">
@@ -129,8 +131,57 @@ export default function Kiosk() {
           )}
         </section>
       </div>
+
+      {/* ปุ่มเต็มจอ ซ่อนเองเมื่ออยู่ในโหมดเต็มจอแล้ว (เบราว์เซอร์บังคับให้ต้องกดเองหนึ่งครั้ง) */}
+      {!fullscreen.active && fullscreen.supported && (
+        <button
+          onClick={fullscreen.enter}
+          className="fixed right-5 bottom-5 rounded-lg border border-ink-rule bg-ink-2 px-4 py-2.5 text-base text-chalk-dim hover:text-chalk"
+        >
+          เต็มจอ
+        </button>
+      )}
     </div>
   )
+}
+
+/** โหมดเต็มจอ */
+function useFullscreen() {
+  const [active, setActive] = useState(() => !!document.fullscreenElement)
+  useEffect(() => {
+    const on = () => setActive(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', on)
+    return () => document.removeEventListener('fullscreenchange', on)
+  }, [])
+  return {
+    active,
+    supported: !!document.documentElement.requestFullscreen,
+    enter: () => document.documentElement.requestFullscreen?.().catch(() => {}),
+  }
+}
+
+/**
+ * กันจอดับเองระหว่างเปิดหน้านี้ (Chrome, Edge, Safari 16.4+)
+ * ขอใหม่ทุกครั้งที่กลับมาที่แท็บ เพราะเบราว์เซอร์ปล่อยอัตโนมัติเมื่อแท็บถูกซ่อน
+ */
+function useWakeLock() {
+  useEffect(() => {
+    let lock: WakeLockSentinel | null = null
+    const request = async () => {
+      if (document.visibilityState !== 'visible' || !('wakeLock' in navigator)) return
+      try {
+        lock = await navigator.wakeLock.request('screen')
+      } catch {
+        // เบราว์เซอร์ไม่อนุญาต ไม่เป็นไร ตั้งค่าไม่ให้จอดับที่เครื่องแทน
+      }
+    }
+    request()
+    document.addEventListener('visibilitychange', request)
+    return () => {
+      document.removeEventListener('visibilitychange', request)
+      lock?.release().catch(() => {})
+    }
+  }, [])
 }
 
 function Row({ row }: { row: ShiftInstance }) {
