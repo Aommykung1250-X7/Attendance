@@ -32,12 +32,13 @@ async function getEmployee(tx: Tx, id: string) {
 
 function parseEmployeeInput(raw: unknown, partial: boolean) {
   const b = asBody(raw)
-  const out: Partial<{ nickname: string; gen: string | null; email: string; type: 'staff' | 'student'; position: string }> = {}
+  const out: Partial<{ nickname: string; gen: string | null; email: string | null; type: 'staff' | 'student'; position: string }> = {}
   if (!partial || b.nickname !== undefined) out.nickname = reqString(b, 'nickname', 'ชื่อเล่น', 80)
   if (!partial || b.email !== undefined) {
-    const email = normalizeEmail(reqString(b, 'email', 'อีเมลบัญชี Google', 200))
-    if (!EMAIL_RE.test(email)) throw badRequest('อีเมลไม่ถูกต้อง แก้ให้อยู่ในรูป name@example.com')
-    out.email = email
+    // เว้นว่างได้ คนที่ยังไม่มีอีเมลจะล็อกอินเช็กชื่อเองไม่ได้ แต่แอดมินกดแทนได้
+    const email = normalizeEmail(optString(b, 'email', 200) ?? '')
+    if (email && !EMAIL_RE.test(email)) throw badRequest('อีเมลไม่ถูกต้อง แก้ให้อยู่ในรูป name@example.com')
+    out.email = email || null
   }
   if (!partial || b.type !== undefined) {
     if (b.type !== 'staff' && b.type !== 'student') throw badRequest('เลือกประเภท: ประจำ หรือ นักศึกษา')
@@ -68,7 +69,7 @@ async function assertEmailFree(tx: Tx, email: string, exceptId?: string) {
 export async function createEmployee(adminEmail: string, raw: unknown): Promise<Employee> {
   const input = parseEmployeeInput(raw, false) as Required<ReturnType<typeof parseEmployeeInput>>
   return db.transaction(async (tx) => {
-    await assertEmailFree(tx, input.email)
+    if (input.email) await assertEmailFree(tx, input.email)
     const [e] = await tx.insert(schema.employees).values(input).returning()
     await audit(tx, { adminEmail, action: 'employee_create', employeeId: e.id, after: toEmployee(e) })
     return toEmployee(e)
@@ -101,7 +102,7 @@ export async function hideEmployee(adminEmail: string, id: string): Promise<Empl
       .where(eq(schema.employees.id, id))
       .returning()
     // ออกจากระบบทุกเครื่องทันที
-    await tx.execute(sql`delete from ${schema.sessions} where kind = 'auth' and data->>'email' = ${e.email}`)
+    if (e.email) await tx.execute(sql`delete from ${schema.sessions} where kind = 'auth' and data->>'email' = ${e.email}`)
     await audit(tx, { adminEmail, action: 'employee_hide', employeeId: id, before: toEmployee(before) })
     return toEmployee(e)
   })
@@ -128,7 +129,7 @@ export async function purgeEmployee(adminEmail: string, id: string, raw: unknown
     const e = await getEmployee(tx, id)
     if (confirmName !== e.nickname) throw badRequest(`พิมพ์ชื่อ "${e.nickname}" ให้ตรงเพื่อยืนยัน`)
     await tx.delete(schema.employees).where(eq(schema.employees.id, id)) // shifts/attendance/overrides ถูกลบตาม (cascade)
-    await tx.execute(sql`delete from ${schema.sessions} where kind = 'auth' and data->>'email' = ${e.email}`)
+    if (e.email) await tx.execute(sql`delete from ${schema.sessions} where kind = 'auth' and data->>'email' = ${e.email}`)
     await audit(tx, { adminEmail, action: 'employee_purge', employeeId: id, before: toEmployee(e) })
     return { ok: true }
   })

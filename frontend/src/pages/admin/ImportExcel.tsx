@@ -105,6 +105,7 @@ export default function ImportExcel() {
               <li>คนที่มาสองรอบใช้ช่องรอบ 2</li>
               <li>แถวในไฟล์จะแทนที่กะเดิมของคนนั้นในโปรเจกนั้นทั้งหมด</li>
               <li>คนที่ไม่อยู่ในไฟล์จะไม่ถูกแตะต้อง การนำเข้าไม่ลบใคร</li>
+              <li>ช่องอีเมลเว้นว่างได้ ระบบจะจับคู่คนนั้นด้วยชื่อเล่น + Gen แต่เจ้าตัวจะเช็กชื่อเองไม่ได้จนกว่าจะกรอกอีเมล</li>
               <li>ถ้ามีปัญหาแม้แถวเดียว จะไม่บันทึกอะไรเลย</li>
             </ul>
           </Card>
@@ -192,12 +193,12 @@ function Summary({ p, name, busy, onConfirm, onCancel }: { p: ImportPreview; nam
       </Card>
 
       {p.newEmployees.length > 0 && (
-        <Section title={`จะสร้างคนใหม่ ${p.newEmployees.length} คน`} hint="ตรวจอีเมลอีกครั้ง ต้องเป็นบัญชีที่ล็อกอิน Google ได้">
-          {p.newEmployees.map((e) => (
-            <li key={e.email} className="flex flex-wrap justify-between gap-x-6 px-5 py-3">
+        <Section title={`จะสร้างคนใหม่ ${p.newEmployees.length} คน`} hint="ตรวจอีเมลอีกครั้ง ต้องเป็นบัญชีที่ล็อกอิน Google ได้ คนที่ยังไม่มีอีเมลจะเช็กชื่อเองไม่ได้จนกว่าจะกรอกในหน้าพนักงาน">
+          {p.newEmployees.map((e, i) => (
+            <li key={i} className="flex flex-wrap justify-between gap-x-6 px-5 py-3">
               <span className="font-medium">{e.nickname}</span>
               <span className="text-sm text-text-dim">
-                {e.email} · {e.projectName}
+                <span className={cx(!e.email && 'text-late')}>{e.email ?? 'ยังไม่มีอีเมล'}</span> · {e.projectName}
               </span>
             </li>
           ))}

@@ -1,6 +1,7 @@
 // นำเข้าตารางจาก Excel (spec หัวข้อ 10)
 //
-// - กุญแจของแถวคือ อีเมล + โปรเจก หนึ่งแถว = เขียนทับกะทั้งหมดของคู่นั้น
+// - กุญแจของแถวคือ คน + โปรเจก หนึ่งแถว = เขียนทับกะทั้งหมดของคู่นั้น
+//   ระบุตัวคนด้วยอีเมล ถ้าช่องอีเมลว่าง (กรอกทีหลังได้) ใช้ ชื่อเล่น + Gen แทน
 // - คู่ที่ไม่อยู่ในไฟล์ไม่ถูกแตะต้อง การนำเข้าไม่ลบใครทั้งสิ้น
 // - เจอปัญหาแม้แถวเดียวให้หยุดทั้งไฟล์ แต่ต้องตรวจครบทุกแถวแล้วรายงานทีเดียว
 // - preview กับ commit เป็นคนละ request ผลการ parse เก็บใน session ฝั่งเซิร์ฟเวอร์ ไม่เชื่อข้อมูลที่ client ส่งกลับมา
@@ -78,12 +79,19 @@ const COLUMN_LABEL: Record<Field, string> = {
 
 const norm = (s: string) => s.replace(/\s+/g, '').toLowerCase()
 
+/** กุญแจชื่อ ใช้ตอนไม่มีอีเมล ชื่อเล่นซ้ำกันได้จึงต้องมี Gen กำกับ */
+const nameKey = (e: { nickname: string; gen: string | null }) => `ชื่อ:${norm(e.nickname)}|${norm(e.gen ?? '')}`
+
+/** กุญแจระบุตัวคน ใช้อีเมลก่อน ถ้าไม่มีอีเมลใช้ ชื่อเล่น + Gen */
+const personKey = (e: { email: string | null; nickname: string; gen: string | null }) => e.email ?? nameKey(e)
+
 /** แถวที่อ่านจากไฟล์และผ่านการตรวจรูปแบบแล้ว */
 export interface ImportRow {
   row: number
   nickname: string
   gen: string | null
-  email: string
+  /** null = ช่องอีเมลในไฟล์ว่างไว้ */
+  email: string | null
   projectName: string
   type: 'staff' | 'student'
   entries: ShiftEntry[]
@@ -209,14 +217,13 @@ export async function parseWorkbook(buf: Buffer): Promise<{ rows: ImportRow[]; p
     const add = (f: Field | string, message: string, fix: string) =>
       problems.push({ row: rowNumber, column: (COLUMN_LABEL as Record<string, string>)[f] ?? f, message, fix })
     const nickname = text(get('nickname'))
-    const who = nickname ? `"${nickname}"` : 'คนในแถวนี้'
     const before = problems.length
 
     if (!nickname) add('nickname', 'ช่องชื่อเล่นว่าง', 'กรอกชื่อเล่น')
 
-    const email = text(get('email')).toLowerCase().replace(/^mailto:/, '')
-    if (!email) add('email', 'ช่องอีเมลว่าง', `กรอกอีเมลบัญชี Google ของ ${who}`)
-    else if (!EMAIL_RE.test(email)) add('email', `อีเมล "${email}" ผิดรูปแบบ`, 'แก้ให้อยู่ในรูป name@example.com')
+    // ช่องอีเมลว่างได้ ระบบจะระบุตัวคนด้วยชื่อเล่น + Gen แทน แล้วค่อยมากรอกอีเมลทีหลังในหน้าพนักงาน
+    const email = text(get('email')).toLowerCase().replace(/^mailto:/, '') || null
+    if (email && !EMAIL_RE.test(email)) add('email', `อีเมล "${email}" ผิดรูปแบบ`, 'แก้ให้อยู่ในรูป name@example.com')
 
     const projectName = text(get('project'))
     if (!projectName) add('project', 'ช่องโปรเจกว่าง', 'กรอกชื่อโปรเจกให้ตรงกับที่มีในระบบ')
@@ -273,33 +280,47 @@ export async function parseWorkbook(buf: Buffer): Promise<{ rows: ImportRow[]; p
       }
     const parsed: ImportRow = { row: rowNumber, nickname, gen: readGen(text(get('gen'))), email, projectName, type: type!, entries }
     // แถวที่มีปัญหาก็ยังเอาไปตรวจข้ามแถว (ซ้ำ/อีเมลชน) เพื่อรายงานให้ครบในรอบเดียว
-    if (email && EMAIL_RE.test(email) && projectName) crossCheck.push(parsed)
+    // ต้องมีกุญแจระบุตัวคนใช้ได้ก่อน คืออีเมลที่ถูกรูปแบบ หรือชื่อเล่น
+    if ((email ? EMAIL_RE.test(email) : !!nickname) && projectName) crossCheck.push(parsed)
     if (valid) rows.push(parsed)
   })
 
   // ตรวจข้ามแถวภายในไฟล์เดียวกัน
   const seenPair = new Map<string, ImportRow>()
-  const byEmail = new Map<string, ImportRow[]>()
+  const byPerson = new Map<string, ImportRow[]>()
+  const withEmailByName = new Map<string, ImportRow>()
+  for (const r of crossCheck) if (r.email && !withEmailByName.has(nameKey(r))) withEmailByName.set(nameKey(r), r)
   for (const r of crossCheck) {
-    const pair = `${r.email}|${norm(r.projectName)}`
+    const key = personKey(r)
+    const pair = `${key}|${norm(r.projectName)}`
     const first = seenPair.get(pair)
     if (first) {
       problems.push({
         row: r.row,
-        column: 'อีเมล + โปรเจก',
-        message: `ซ้ำกับแถวที่ ${first.row} (${r.email}, ${r.projectName})`,
+        column: r.email ? 'อีเมล + โปรเจก' : 'ชื่อเล่น + โปรเจก',
+        message: `ซ้ำกับแถวที่ ${first.row} (${r.email ?? displayName(r)}, ${r.projectName})`,
         fix: 'รวมสองแถวเป็นแถวเดียว ถ้ามาสองรอบต่อวันให้ใช้ช่องรอบ 2',
       })
     } else seenPair.set(pair, r)
 
-    const same = byEmail.get(r.email) ?? []
-    const other = same.find((x) => x.nickname !== r.nickname)
+    const same = byPerson.get(key) ?? []
+    // แถวที่ไม่มีอีเมลถูกระบุตัวด้วยชื่อ จึงไม่มีทางชื่อไม่ตรงกันเอง เช็กนี้จึงใช้กับแถวที่มีอีเมลเท่านั้น
+    const other = r.email ? same.find((x) => x.nickname !== r.nickname) : undefined
     if (other)
       problems.push({
         row: r.row,
         column: 'อีเมล',
         message: `อีเมลนี้ซ้ำกับแถวที่ ${other.row} ซึ่งชื่อ "${other.nickname}" ไม่ตรงกับ "${r.nickname}"`,
         fix: 'ตรวจว่าเป็นคนเดียวกันหรือไม่ ถ้าใช่ให้แก้ชื่อให้ตรงกัน ถ้าไม่ใช่ให้แก้อีเมล',
+      })
+    // แถวที่ไม่กรอกอีเมลกับแถวที่กรอก จะกลายเป็นคนละคนถึงจะชื่อเดียวกัน กันพลาดไว้ก่อน
+    const twin = r.email ? undefined : withEmailByName.get(nameKey(r))
+    if (twin)
+      problems.push({
+        row: r.row,
+        column: 'อีเมล',
+        message: `แถวนี้ไม่ได้กรอกอีเมล แต่ชื่อ "${displayName(r)}" ซ้ำกับแถวที่ ${twin.row} ที่กรอกอีเมลไว้`,
+        fix: 'ถ้าเป็นคนเดียวกันให้กรอกอีเมลให้เหมือนกันทั้งสองแถว ถ้าคนละคนให้แก้ชื่อเล่นหรือ Gen ให้ต่างกัน',
       })
     // คนเดียวกันอยู่สองโปรเจกในเวลาที่ทับกันไม่ได้
     for (const x of same) {
@@ -315,7 +336,7 @@ export async function parseWorkbook(buf: Buffer): Promise<{ rows: ImportRow[]; p
         break
       }
     }
-    byEmail.set(r.email, [...same, r])
+    byPerson.set(key, [...same, r])
   }
 
   if (rows.length === 0 && problems.length === 0)
@@ -337,11 +358,29 @@ interface Resolved {
 
 async function resolveAgainstDb(tx: Tx, rows: ImportRow[]): Promise<Resolved> {
   const problems: ImportProblem[] = []
-  const emails = [...new Set(rows.map((r) => r.email))]
-  const existing = emails.length
+  // คนที่ถูกซ่อนก็ต้องเจอด้วย ไม่งั้นการนำเข้าซ้ำจะสร้างคนซ้อนขึ้นมาอีกคน
+  const emails = [...new Set(rows.map((r) => r.email).filter((e): e is string => e !== null))]
+  const nicknames = [...new Set(rows.filter((r) => !r.email).map((r) => r.nickname))]
+  const byEmail = emails.length
     ? await tx.select().from(schema.employees).where(inArray(schema.employees.email, emails))
     : []
-  const employees = new Map(existing.map((e) => [e.email, e]))
+  const byNickname = nicknames.length
+    ? await tx.select().from(schema.employees).where(inArray(schema.employees.nickname, nicknames))
+    : []
+
+  const employees = new Map(byEmail.map((e) => [e.email!, e]))
+  // แถวที่ไม่มีอีเมลจับคู่ด้วย ชื่อเล่น + Gen จับกับคนที่มีอีเมลในระบบแล้วก็ได้
+  // (แอดมินอาจกรอกอีเมลให้ทีหลัง แล้วอัปโหลดไฟล์เดิมที่ยังเว้นว่างอยู่ซ้ำ)
+  const candidates = new Map<string, EmployeeRow[]>()
+  for (const e of byNickname) candidates.set(nameKey(e), [...(candidates.get(nameKey(e)) ?? []), e])
+  const ambiguous = new Set<string>()
+  for (const r of rows) {
+    if (r.email) continue
+    const found = candidates.get(nameKey(r)) ?? []
+    if (found.length === 1) employees.set(nameKey(r), found[0])
+    else if (found.length > 1) ambiguous.add(nameKey(r))
+  }
+
   const allProjects = await tx.select().from(schema.projects)
   const projects = new Map(allProjects.map((p) => [norm(p.name), p]))
   const known = allProjects.map((p) => p.name).slice(0, 12).join(', ')
@@ -356,16 +395,27 @@ async function resolveAgainstDb(tx: Tx, rows: ImportRow[]): Promise<Resolved> {
           ? `แก้ชื่อให้ตรงกับที่มี (${known}) หรือสร้างโปรเจกนี้ในหน้าโปรเจกก่อน`
           : 'สร้างโปรเจกในหน้าโปรเจกก่อน แล้วอัปโหลดใหม่',
       })
-    const e = employees.get(r.email)
+    if (!r.email && ambiguous.has(nameKey(r))) {
+      problems.push({
+        row: r.row,
+        column: 'ชื่อเล่น',
+        message: `มีพนักงานชื่อ "${displayName(r)}" มากกว่าหนึ่งคนในระบบ แถวนี้ไม่ได้กรอกอีเมลจึงบอกไม่ได้ว่าเป็นคนไหน`,
+        fix: 'กรอกอีเมลในไฟล์เพื่อระบุตัวคน หรือแก้ Gen ให้ต่างกัน',
+      })
+      continue
+    }
+    const e = employees.get(personKey(r))
     if (!e) continue
     if (!e.isActive)
       problems.push({
         row: r.row,
-        column: 'อีเมล',
-        message: `อีเมลนี้เป็นของ ${displayName(e)} ซึ่งถูกซ่อนไว้`,
+        column: r.email ? 'อีเมล' : 'ชื่อเล่น',
+        message: r.email
+          ? `อีเมลนี้เป็นของ ${displayName(e)} ซึ่งถูกซ่อนไว้`
+          : `ชื่อนี้ตรงกับ ${displayName(e)} ซึ่งถูกซ่อนไว้`,
         fix: 'กู้คืนคนนี้ในหน้าพนักงานก่อน แล้วอัปโหลดใหม่',
       })
-    else if (e.nickname !== r.nickname)
+    else if (r.email && e.nickname !== r.nickname)
       problems.push({
         row: r.row,
         column: 'อีเมล',
@@ -396,13 +446,13 @@ export async function previewImport(rows: ImportRow[], problems: ImportProblem[]
   const resolved = await resolveAgainstDb(db, rows)
   if (resolved.problems.length) return { ...empty, problems: resolved.problems }
 
-  const idFor = (r: ImportRow) => resolved.employees.get(r.email)?.id ?? `new:${r.email}`
+  const idFor = (r: ImportRow) => resolved.employees.get(personKey(r))?.id ?? `new:${personKey(r)}`
   const existingIds = [...resolved.employees.values()].map((e) => e.id)
   const current: PlanShift[] = await loadCurrentShifts(db, existingIds)
   const { next } = plan(rows, resolved, current, idFor)
 
   const projectName = new Map([...resolved.projects.values()].map((p) => [p.id, p.name]))
-  const newEmployees = new Map<string, { nickname: string; email: string; projectName: string }>()
+  const newEmployees = new Map<string, ImportPreview['newEmployees'][number]>()
   const newAssignments: ImportPreview['newAssignments'] = []
   const changedShifts: ImportPreview['changedShifts'] = []
   let unchangedCount = 0
@@ -413,9 +463,9 @@ export async function previewImport(rows: ImportRow[], problems: ImportProblem[]
   const rowPairs = new Set(rows.map((r) => `${idFor(r)}|${resolved.projects.get(norm(r.projectName))!.id}`))
 
   for (const r of rows) {
-    if (resolved.employees.has(r.email)) continue
-    const prev = newEmployees.get(r.email)
-    newEmployees.set(r.email, {
+    if (resolved.employees.has(personKey(r))) continue
+    const prev = newEmployees.get(personKey(r))
+    newEmployees.set(personKey(r), {
       nickname: displayName(r),
       email: r.email,
       projectName: prev ? `${prev.projectName}, ${r.projectName}` : r.projectName,
@@ -465,24 +515,29 @@ export async function commitImport(adminEmail: string, rows: ImportRow[]) {
     // สร้างคนใหม่ (หนึ่งอีเมลหนึ่งคน ใช้ข้อมูลจากแถวแรกที่เจอ)
     const created: EmployeeRow[] = []
     for (const r of rows) {
-      if (resolved.employees.has(r.email)) continue
+      if (resolved.employees.has(personKey(r))) continue
       const [e] = await tx
         .insert(schema.employees)
         .values({ nickname: r.nickname, gen: r.gen, email: r.email, type: r.type })
         .returning()
-      resolved.employees.set(r.email, e)
+      resolved.employees.set(personKey(r), e)
       created.push(e)
     }
 
     const ids = [...resolved.employees.values()].map((e) => e.id)
     const current = await loadCurrentShifts(tx, ids)
-    const { next } = plan(rows, resolved, current, (r) => resolved.employees.get(r.email)!.id)
+    const { next } = plan(rows, resolved, current, (r) => resolved.employees.get(personKey(r))!.id)
     const res = await reconcile(tx, current, next, localParts(new Date()).date)
 
     await audit(tx, {
       adminEmail,
       action: 'import',
-      after: { rows: rows.length, createdEmployees: created.map((e) => e.email), shiftsAdded: res.added, shiftsRemoved: res.removed },
+      after: {
+        rows: rows.length,
+        createdEmployees: created.map((e) => e.email ?? `${displayName(e)} (ยังไม่มีอีเมล)`),
+        shiftsAdded: res.added,
+        shiftsRemoved: res.removed,
+      },
     })
     return { applied: rows.length }
   })
@@ -521,12 +576,14 @@ export async function templateWorkbook(): Promise<Buffer> {
   ;[
     'หนึ่งแถว = หนึ่งคนต่อหนึ่งโปรเจก ถ้าคนเดียวอยู่สองโปรเจกให้กรอกสองแถว',
     'อีเมลต้องเป็นบัญชีที่ล็อกอิน Google ได้ (Gmail หรืออีเมลที่ผูกกับบัญชี Google) ไม่งั้นจะเช็กชื่อไม่ได้',
+    'เว้นช่องอีเมลว่างได้ถ้ายังไม่รู้ นำเข้าตารางไปก่อนแล้วค่อยมากรอกในหน้าพนักงาน แต่คนนั้นจะสแกน QR เช็กชื่อเองไม่ได้จนกว่าจะกรอก (แอดมินกดแทนได้)',
+    'แถวที่ไม่กรอกอีเมล ระบบจะจับคู่คนด้วย ชื่อเล่น + Gen ถ้าในระบบมีชื่อซ้ำกันหลายคนต้องกรอกอีเมลเพื่อบอกว่าเป็นคนไหน',
     'Gen แยกออกจากชื่อ พนักงานประจำเว้นว่างได้',
     'ประเภท: ประจำ หรือ นักศึกษา (พาร์ทไทม์ให้ใส่ นักศึกษา)',
     'คอลัมน์ จ ถึง อา: ติ๊กวันที่มา ใส่อะไรก็ได้ เช่น ✓ หรือ x ช่องว่าง = ไม่มา',
     'เวลาใช้รูปแบบ HH:MM เช่น 09:30 (ห้ามใช้จุด เช่น 9.30)',
     'รอบ 2 สำหรับคนที่มาวันละสองรอบ ต้องเริ่มหลังรอบ 1 สิ้นสุด เว้นว่างได้',
-    'แถวในไฟล์จะเขียนทับกะเดิมของคู่ อีเมล + โปรเจก นั้นทั้งหมด',
+    'แถวในไฟล์จะเขียนทับกะเดิมของคู่ คน + โปรเจก นั้นทั้งหมด',
     'คนที่ไม่มีในไฟล์จะไม่ถูกแตะต้อง การนำเข้าไม่ลบใคร',
     'หมายเหตุ: ระบบไม่อ่าน เก็บไว้ให้คนอ่าน',
   ].forEach((line) => help.addRow([line]))

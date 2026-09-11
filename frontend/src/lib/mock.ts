@@ -45,7 +45,8 @@ const employees: Employee[] = [
   id: id!,
   nickname: nickname!,
   gen,
-  email: `demo${i + 1}@example.com`,
+  // สองคนสุดท้ายนำเข้ามาโดยยังไม่กรอกอีเมล ไว้ดูป้าย "ยังไม่มีอีเมล"
+  email: i >= 7 ? null : `demo${i + 1}@example.com`,
   type: type as Employee['type'],
   position: position ?? '',
   isActive: true,
@@ -287,8 +288,9 @@ export const mockApi: Api = {
 
   employees: async (includeInactive = false) => wait(employees.filter((e) => includeInactive || e.isActive)),
   createEmployee: async (e) => {
-    if (employees.some((x) => x.email === e.email.toLowerCase())) throw new ApiError(409, 'อีเมลนี้มีอยู่แล้ว')
-    const n: Employee = { ...e, email: e.email.toLowerCase(), id: nextId('e'), isActive: true }
+    const email = e.email?.toLowerCase() ?? null
+    if (email && employees.some((x) => x.email === email)) throw new ApiError(409, 'อีเมลนี้มีอยู่แล้ว')
+    const n: Employee = { ...e, email, id: nextId('e'), isActive: true }
     employees.push(n)
     return wait(n)
   },
@@ -398,7 +400,7 @@ export const mockApi: Api = {
         problems: [],
         newEmployees: [
           { nickname: 'ปอ (Gen 9)', email: 'por@example.com', projectName: 'LU-Phuket' },
-          { nickname: 'จูน (Gen 9)', email: 'june@example.com', projectName: 'Mobile App' },
+          { nickname: 'จูน (Gen 9)', email: null, projectName: 'Mobile App' },
         ],
         newAssignments: [{ nickname: 'มิว (Gen 8)', projectName: 'LU-Phuket' }],
         changedShifts: [

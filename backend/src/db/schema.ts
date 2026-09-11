@@ -35,8 +35,8 @@ export const employees = pgTable('employees', {
   nickname: text('nickname').notNull(),
   /** แยกจากชื่อเสมอ ว่างได้สำหรับพนักงานประจำ */
   gen: text('gen'),
-  /** บัญชี Google เก็บเป็นตัวพิมพ์เล็กเสมอ */
-  email: text('email').notNull().unique(),
+  /** บัญชี Google เก็บเป็นตัวพิมพ์เล็กเสมอ null = ยังไม่ได้กรอก (คนนี้เช็กชื่อเองไม่ได้) */
+  email: text('email').unique(),
   type: employeeType('type').notNull(),
   position: text('position').notNull().default(''),
   /** ลบแบบซ่อน (spec 9.3) */

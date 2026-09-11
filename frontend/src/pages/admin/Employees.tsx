@@ -14,6 +14,7 @@ export default function Employees() {
   const [showHidden, setShowHidden] = useState(false)
   const [type, setType] = useState<'all' | Employee['type']>('all')
   const [search, setSearch] = useState('')
+  const [noEmailOnly, setNoEmailOnly] = useState(false)
   const [adding, setAdding] = useState(false)
 
   const load = () => api.employees(showHidden).then(setList).catch((e) => setError(e.message))
@@ -25,16 +26,24 @@ export default function Employees() {
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase()
     return (list ?? []).filter(
-      (e) => (type === 'all' || e.type === type) && (!q || `${e.nickname} ${e.gen ?? ''} ${e.email} ${e.position}`.toLowerCase().includes(q)),
+      (e) =>
+        (type === 'all' || e.type === type) &&
+        (!noEmailOnly || !e.email) &&
+        (!q || `${e.nickname} ${e.gen ?? ''} ${e.email ?? ''} ${e.position}`.toLowerCase().includes(q)),
     )
-  }, [list, type, search])
+  }, [list, type, search, noEmailOnly])
 
   const active = (list ?? []).filter((e) => e.isActive)
+  const noEmail = active.filter((e) => !e.email).length
   return (
     <>
       <PageHeader
         title="พนักงาน"
-        sub={list ? `${active.length} คน · ประจำ ${active.filter((e) => e.type === 'staff').length} · นักศึกษา ${active.filter((e) => e.type === 'student').length}` : ' '}
+        sub={
+          list
+            ? `${active.length} คน · ประจำ ${active.filter((e) => e.type === 'staff').length} · นักศึกษา ${active.filter((e) => e.type === 'student').length}${noEmail ? ` · ยังไม่มีอีเมล ${noEmail} คน` : ''}`
+            : ' '
+        }
         actions={
           <Button variant="primary" onClick={() => setAdding(true)}>
             + เพิ่มพนักงาน
@@ -52,6 +61,7 @@ export default function Employees() {
           ))}
         </div>
         <Checkbox label="แสดงคนที่ถูกซ่อน" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} className="text-sm" />
+        <Checkbox label="เฉพาะคนที่ยังไม่มีอีเมล" checked={noEmailOnly} onChange={(e) => setNoEmailOnly(e.target.checked)} className="text-sm" />
       </div>
 
       {error && <ErrorNote message={error} onRetry={load} />}
@@ -80,10 +90,15 @@ export default function Employees() {
                         </Link>
                         {e.gen && <span className="ml-2 text-sm text-text-dim">{e.gen}</span>}
                         {!e.isActive && <span className="ml-2 rounded bg-sunken px-1.5 py-0.5 text-[12px]">ถูกซ่อน</span>}
+                        {!e.email && (
+                          <span className="ml-2 rounded bg-late-bg px-1.5 py-0.5 text-[12px] text-late" title="ยังไม่ได้กรอกอีเมล คนนี้สแกน QR เช็กชื่อเองไม่ได้">
+                            ยังไม่มีอีเมล
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-sm">{typeLabel(e.type)}</td>
                       <td className="hidden px-4 py-3 text-sm text-text-dim md:table-cell">{e.position || '—'}</td>
-                      <td className="max-w-[16rem] truncate px-4 py-3 text-sm text-text-dim">{e.email}</td>
+                      <td className={cx('max-w-[16rem] truncate px-4 py-3 text-sm', e.email ? 'text-text-dim' : 'text-late')}>{e.email ?? 'ยังไม่มีอีเมล'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -110,7 +125,7 @@ function AddEmployee({ open, onClose }: { open: boolean; onClose: () => void }) 
     setBusy(true)
     setError(null)
     try {
-      const e = await api.createEmployee({ ...v, nickname: v.nickname.trim(), email: v.email.trim(), gen: v.gen?.trim() || null })
+      const e = await api.createEmployee({ ...v, nickname: v.nickname.trim(), email: v.email.trim() || null, gen: v.gen?.trim() || null })
       setV(emptyEmployee)
       onClose()
       navigate(`/admin/employees/${e.id}?new=1`)

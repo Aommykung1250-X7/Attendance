@@ -21,7 +21,8 @@ export interface Employee {
   id: string
   nickname: string
   gen: string | null
-  email: string
+  /** null = ยังไม่ได้กรอก คนนี้ล็อกอินเช็กชื่อเองไม่ได้จนกว่าจะกรอก */
+  email: string | null
   type: EmployeeType
   position: string
   isActive: boolean
@@ -98,7 +99,7 @@ export interface ImportProblem {
 export interface ImportPreview {
   ok: boolean
   problems: ImportProblem[]
-  newEmployees: { nickname: string; email: string; projectName: string }[]
+  newEmployees: { nickname: string; email: string | null; projectName: string }[]
   newAssignments: { nickname: string; projectName: string }[]
   changedShifts: { nickname: string; projectName: string; before: string; after: string }[]
   /** แถวที่ตรงกับของเดิมอยู่แล้ว ไม่มีอะไรเปลี่ยน */

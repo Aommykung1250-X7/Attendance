@@ -2,7 +2,8 @@ import { useState } from 'react'
 import type { Employee } from '../lib/types'
 import { Field, Input, cx } from './ui'
 
-export type EmployeeInput = Omit<Employee, 'id' | 'isActive'>
+/** ช่องในฟอร์มเป็นข้อความเสมอ ตอนส่งค่อยแปลงอีเมลว่างเป็น null */
+export type EmployeeInput = Omit<Employee, 'id' | 'isActive' | 'email'> & { email: string }
 
 export const emptyEmployee: EmployeeInput = { nickname: '', gen: null, email: '', type: 'student', position: '' }
 
@@ -25,6 +26,8 @@ export function EmployeeForm({ value, onChange }: { value: EmployeeInput; onChan
             <>
               <strong className="font-medium text-late">ต้องเป็นอีเมลที่ใช้ล็อกอิน Google ได้</strong> (Gmail หรืออีเมลที่ผูกกับบัญชี Google)
               ถ้ากรอกอีเมลอื่น คนนี้จะเช็กชื่อไม่ได้เลย ถ้าไม่แน่ใจให้เจ้าตัวลองเปิด accounts.google.com ด้วยอีเมลนั้นก่อน
+              <br />
+              เว้นว่างได้ถ้ายังไม่รู้ แล้วค่อยมากรอกทีหลัง ระหว่างนั้นคนนี้จะสแกน QR เช็กชื่อเองไม่ได้ (แอดมินกดแทนได้)
             </>
           }
         >
@@ -37,7 +40,7 @@ export function EmployeeForm({ value, onChange }: { value: EmployeeInput; onChan
               value={value.email}
               onBlur={() => setTouched(true)}
               onChange={(e) => set({ email: e.target.value })}
-              placeholder="name@gmail.com"
+              placeholder="name@gmail.com (เว้นว่างได้)"
             />
           )}
         </Field>
@@ -68,6 +71,7 @@ export function EmployeeForm({ value, onChange }: { value: EmployeeInput; onChan
 
 export function employeeFormError(v: EmployeeInput): string | null {
   if (!v.nickname.trim()) return 'กรอกชื่อเล่น'
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())) return 'กรอกอีเมลบัญชี Google ให้ถูกต้อง'
+  const email = v.email.trim()
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'อีเมลไม่ถูกต้อง แก้ให้อยู่ในรูป name@example.com หรือเว้นว่างไว้ก่อน'
   return null
 }

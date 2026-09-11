@@ -111,6 +111,11 @@ describe('ตั้งค่าเริ่มต้นโดยแอดมิ�
     ids.yuri = b.body.id
     const dup = await admin.json('POST', '/api/employees', { nickname: 'x', email: 'ton@gmail.com', type: 'staff' })
     expect(dup.status).toBe(409)
+    // เว้นอีเมลว่างได้ ไว้มากรอกทีหลัง คนแบบนี้ยังล็อกอินเช็กชื่อเองไม่ได้
+    const noMail = await admin.json('POST', '/api/employees', { nickname: 'ไข่', gen: 'Gen 9', email: '', type: 'student' })
+    expect(noMail.status).toBe(200)
+    expect(noMail.body.email).toBe(null)
+    expect((await admin.json('PATCH', `/api/employees/${noMail.body.id}`, { email: 'ไม่ใช่อีเมล' })).status).toBe(400)
 
     const wk = [1, 2, 3, 4, 5].map((d) => ({ weekday: d, startTime: '09:00', endTime: '18:00' }))
     expect((await admin.json('POST', `/api/projects/${turnpro}/assign`, { employeeId: ids.ton, shifts: wk })).status).toBe(200)
@@ -308,7 +313,7 @@ describe('นำเข้า Excel', () => {
     expect(r.status).toBe(200)
     expect(r.body.ok).toBe(false)
     const byRow = (n: number) => r.body.problems.filter((p: { row: number }) => p.row === n)
-    expect(byRow(2)[0]).toMatchObject({ column: 'อีเมล', fix: 'กรอกอีเมลบัญชี Google ของ "เอ"' })
+    expect(byRow(2)).toEqual([]) // ช่องอีเมลว่างไม่ใช่ปัญหาแล้ว กรอกทีหลังได้
     expect(byRow(3).map((p: { column: string }) => p.column).sort()).toEqual(['อีเมล', 'เวลาเข้ารอบ 1'].sort())
     expect(byRow(3).find((p: { column: string }) => p.column === 'เวลาเข้ารอบ 1').fix).toContain('09:30')
     expect(byRow(4)[0].message).toBe('ไม่ได้ติ๊กวันไหนเลย')
@@ -363,6 +368,61 @@ describe('นำเข้า Excel', () => {
     // อัปไฟล์เดิมซ้ำ → ไม่มีอะไรเปลี่ยน
     const again = (await admin.json('POST', '/api/import/preview', new FormPayload(file))).body
     expect(again).toMatchObject({ ok: true, newEmployees: [], newAssignments: [], changedShifts: [], unchangedCount: 3 })
+  })
+
+  it('เว้นช่องอีเมลว่างได้: สร้างคนโดยไม่มีอีเมล แล้วอัปไฟล์เดิมซ้ำไม่สร้างคนซ้ำ', async () => {
+    const file = await xlsx([
+      HEAD,
+      ['ปอ', 9, '', 'LU-Phuket', 'นักศึกษา', '', '✓', '', '', '', '', '', '09:30', '12:00'],
+    ])
+    const p = (await admin.json('POST', '/api/import/preview', new FormPayload(file))).body
+    expect(p.ok).toBe(true)
+    expect(p.newEmployees).toEqual([{ nickname: 'ปอ (Gen 9)', email: null, projectName: 'LU-Phuket' }])
+    expect((await admin.json('POST', '/api/import/commit')).body).toEqual({ applied: 1 })
+
+    const por = (await admin.json('GET', '/api/employees')).body.find((e: { nickname: string }) => e.nickname === 'ปอ')
+    expect(por).toMatchObject({ gen: 'Gen 9', email: null, type: 'student' })
+    ids.por = por.id
+
+    // ไฟล์เดิมซ้ำ → จับคู่ด้วย ชื่อเล่น + Gen ได้ ไม่สร้างคนใหม่
+    const again = (await admin.json('POST', '/api/import/preview', new FormPayload(file))).body
+    expect(again).toMatchObject({ ok: true, newEmployees: [], newAssignments: [], changedShifts: [], unchangedCount: 1 })
+  })
+
+  it('กรอกอีเมลให้ทีหลังแล้วอัปไฟล์เดิม (ที่ยังเว้นว่าง) ซ้ำ ยังจับคู่คนเดิมได้', async () => {
+    expect((await admin.json('PATCH', `/api/employees/${ids.por}`, { email: 'Por@Gmail.com' })).body.email).toBe('por@gmail.com')
+    const file = await xlsx([
+      HEAD,
+      ['ปอ', 9, '', 'LU-Phuket', 'นักศึกษา', '', '✓', '', '', '', '', '', '09:30', '12:00'],
+    ])
+    const p = (await admin.json('POST', '/api/import/preview', new FormPayload(file))).body
+    expect(p).toMatchObject({ ok: true, newEmployees: [], unchangedCount: 1 })
+  })
+
+  it('ในไฟล์เดียวกัน ชื่อซ้ำกันแต่แถวหนึ่งกรอกอีเมล อีกแถวไม่กรอก → ต้องทัก', async () => {
+    const file = await xlsx([
+      HEAD,
+      ['ซัน', 'Gen 9', 'sun@gmail.com', 'LU-Phuket', 'นักศึกษา', '✓', '', '', '', '', '', '', '09:30', '12:00'],
+      ['ซัน', 'Gen 9', '', 'TurnPRO', 'นักศึกษา', '', '', '✓', '', '', '', '', '13:00', '15:00'],
+    ])
+    const r = (await admin.json('POST', '/api/import/preview', new FormPayload(file))).body
+    expect(r.ok).toBe(false)
+    expect(r.problems).toHaveLength(1)
+    expect(r.problems[0]).toMatchObject({ row: 3, column: 'อีเมล' })
+    expect(r.problems[0].message).toContain('ซ้ำกับแถวที่ 2')
+  })
+
+  it('มีคนชื่อ+Gen ซ้ำกันในระบบ แถวที่ไม่กรอกอีเมลจะระบุตัวไม่ได้ → ต้องทัก', async () => {
+    await admin.json('POST', '/api/employees', { nickname: 'กาย', gen: 'Gen 9', email: 'kai1@gmail.com', type: 'student' })
+    await admin.json('POST', '/api/employees', { nickname: 'กาย', gen: 'Gen 9', email: 'kai2@gmail.com', type: 'student' })
+    const file = await xlsx([
+      HEAD,
+      ['กาย', 9, '', 'LU-Phuket', 'นักศึกษา', '✓', '', '', '', '', '', '', '09:30', '12:00'],
+    ])
+    const r = (await admin.json('POST', '/api/import/preview', new FormPayload(file))).body
+    expect(r.ok).toBe(false)
+    expect(r.problems[0]).toMatchObject({ row: 2, column: 'ชื่อเล่น' })
+    expect(r.problems[0].message).toContain('มากกว่าหนึ่งคน')
   })
 
   it('ดาวน์โหลดไฟล์ตัวอย่างได้ และไฟล์ตัวอย่างผ่านการตรวจรูปแบบ', async () => {

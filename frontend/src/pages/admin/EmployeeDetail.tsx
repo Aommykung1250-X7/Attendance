@@ -61,7 +61,8 @@ export default function EmployeeDetail() {
           </h1>
           <p className="mt-1 text-[15px] text-text-dim">
             {typeLabel(e.type)}
-            {e.position && ` · ${e.position}`} · {e.email}
+            {e.position && ` · ${e.position}`} ·{' '}
+            {e.email ?? <span className="text-late">ยังไม่มีอีเมล — กด "แก้ข้อมูล" เพื่อกรอก ระหว่างนี้เช็กชื่อเองไม่ได้</span>}
           </p>
         </div>
         <div className="flex gap-2">
@@ -127,10 +128,10 @@ export default function EmployeeDetail() {
 
       {dialog === 'edit' && (
         <EditDialog
-          value={{ nickname: e.nickname, gen: e.gen, email: e.email, type: e.type, position: e.position }}
+          value={{ nickname: e.nickname, gen: e.gen, email: e.email ?? '', type: e.type, position: e.position }}
           onClose={() => setDialog(null)}
           onSave={async (v) => {
-            await api.updateEmployee(e.id, v)
+            await api.updateEmployee(e.id, { ...v, email: v.email.trim() || null })
             setDialog(null)
             setToast('บันทึกข้อมูลแล้ว')
             load()
