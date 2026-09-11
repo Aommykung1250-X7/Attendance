@@ -1,6 +1,6 @@
 // ชิ้นส่วนพื้นฐานของหน้าเว็บ ปุ่มสูงอย่างน้อย 44px เพื่อให้กดบนมือถือได้แม่น
 
-import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { useEffect, useId, useRef, type ComponentProps, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 
 import { twMerge } from 'tailwind-merge'
 
@@ -25,7 +25,7 @@ export function Button({
   className,
   type = 'button',
   ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; size?: 'sm' | 'md' }) {
+}: ComponentProps<'button'> & { variant?: Variant; size?: 'sm' | 'md' }) {
   return (
     <button
       type={type}
@@ -112,7 +112,7 @@ export function Dialog({
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
       className={cx(
-        'm-auto max-h-[92dvh] w-[calc(100%-1.5rem)] rounded-2xl bg-surface p-0 text-text shadow-2xl backdrop:bg-ink/45 open:animate-fade',
+        'm-auto max-h-[92dvh] w-[calc(100%-1.5rem)] rounded-2xl bg-surface p-0 text-text shadow-2xl backdrop:bg-ink-3/55 backdrop:backdrop-blur-[2px] open:animate-pop',
         wide ? 'max-w-2xl' : 'max-w-md',
       )}
     >
@@ -181,19 +181,4 @@ export function Empty({ title, body, action }: { title: string; body?: ReactNode
   )
 }
 
-/** ข้อความแจ้งผลสั้นๆ มุมล่างของจอ */
-export function Toast({ message, onDone }: { message: string | null; onDone: () => void }) {
-  const done = useRef(onDone)
-  done.current = onDone
-  useEffect(() => {
-    if (!message) return
-    const t = setTimeout(() => done.current(), 3200)
-    return () => clearTimeout(t)
-  }, [message])
-  if (!message) return null
-  return (
-    <div role="status" className="fixed inset-x-0 bottom-5 z-50 flex justify-center px-4">
-      <p className="animate-stamp rounded-full bg-ink px-5 py-2.5 text-[15px] text-chalk shadow-lg">{message}</p>
-    </div>
-  )
-}
+// ข้อความแจ้งผลและกล่องยืนยันอยู่ที่ components/notify.tsx

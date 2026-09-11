@@ -7,7 +7,8 @@ import { api } from '../../lib/api'
 import { addDays, displayName, nowHHMM, stamp, todayISO } from '../../lib/format'
 import { type AdminAction, type AuditEntry, type DayLog, type DayLogRow, type OverrideStatus, type ShiftStatus } from '../../lib/types'
 import { StatusPill } from '../../components/StatusPill'
-import { Button, Dialog, Empty, ErrorNote, Input, Loading, PageHeader, Textarea, Toast, cx } from '../../components/ui'
+import { Button, Dialog, Empty, ErrorNote, Input, Loading, PageHeader, Textarea, cx } from '../../components/ui'
+import { Toast } from '../../components/notify'
 
 type Filter = 'all' | 'arrived' | ShiftStatus
 

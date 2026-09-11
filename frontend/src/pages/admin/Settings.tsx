@@ -4,14 +4,15 @@ import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { shortDate } from '../../lib/format'
 import type { AppSettings, Holiday } from '../../lib/types'
-import { Button, Card, Dialog, ErrorNote, Field, Input, Loading, PageHeader, Toast } from '../../components/ui'
+import { Button, Card, ErrorNote, Field, Input, Loading, PageHeader } from '../../components/ui'
+import { Toast, useNotify } from '../../components/notify'
 
 export default function Settings() {
   const [s, setS] = useState<AppSettings | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [ttl, setTtl] = useState('30')
-  const [confirmRotate, setConfirmRotate] = useState(false)
+  const notify = useNotify()
 
   useEffect(() => {
     api
@@ -25,8 +26,29 @@ export default function Settings() {
 
   const copy = async () => {
     if (!s) return
-    await navigator.clipboard.writeText(s.displayUrl).catch(() => {})
-    setToast('คัดลอกลิงก์แล้ว')
+    try {
+      await navigator.clipboard.writeText(s.displayUrl)
+      setToast('คัดลอกลิงก์แล้ว')
+    } catch {
+      notify.toast('คัดลอกไม่ได้', { tone: 'error', detail: 'เบราว์เซอร์ไม่อนุญาต ให้เลือกข้อความในกล่องด้านบนแล้วคัดลอกเอง' })
+    }
+  }
+
+  const rotate = async () => {
+    let next: AppSettings | undefined
+    const ok = await notify.confirm({
+      title: 'สร้างลิงก์หน้าจอใหม่?',
+      body: 'ลิงก์เดิมจะใช้ไม่ได้ทันที จอในออฟฟิศจะขึ้นว่าลิงก์ใช้ไม่ได้จนกว่าจะเปิดลิงก์ใหม่ ใช้เมื่อสงสัยว่าลิงก์หลุดออกไปนอกออฟฟิศ',
+      confirmLabel: 'สร้างลิงก์ใหม่',
+      busyLabel: 'กำลังสร้าง',
+      danger: true,
+      action: async () => {
+        next = await api.rotateDisplayKey()
+      },
+    })
+    if (!ok || !next) return
+    setS(next)
+    notify.toast('สร้างลิงก์ใหม่แล้ว', { detail: 'อย่าลืมเปิดลิงก์ใหม่บนจอในออฟฟิศ' })
   }
 
   return (
@@ -50,7 +72,7 @@ export default function Settings() {
               <a href={s.displayUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center rounded-lg bg-brand px-3 text-sm font-medium text-on-brand hover:bg-brand-strong">
                 เปิดหน้าจอ QR ↗
               </a>
-              <Button size="sm" variant="danger" onClick={() => setConfirmRotate(true)}>
+              <Button size="sm" variant="danger" onClick={rotate}>
                 สร้างลิงก์ใหม่
               </Button>
             </div>
@@ -83,30 +105,6 @@ export default function Settings() {
         </div>
       )}
 
-      <Dialog
-        open={confirmRotate}
-        onClose={() => setConfirmRotate(false)}
-        title="สร้างลิงก์หน้าจอใหม่?"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setConfirmRotate(false)}>
-              ยกเลิก
-            </Button>
-            <Button
-              variant="danger-solid"
-              onClick={async () => {
-                setS(await api.rotateDisplayKey())
-                setConfirmRotate(false)
-                setToast('สร้างลิงก์ใหม่แล้ว อย่าลืมเปิดลิงก์ใหม่บนจอ')
-              }}
-            >
-              สร้างลิงก์ใหม่
-            </Button>
-          </>
-        }
-      >
-        <p className="text-[15px] leading-relaxed">ลิงก์เดิมจะใช้ไม่ได้ทันที จอในออฟฟิศจะขึ้นว่าลิงก์ใช้ไม่ได้จนกว่าจะเปิดลิงก์ใหม่ ใช้เมื่อสงสัยว่าลิงก์หลุดออกไปนอกออฟฟิศ</p>
-      </Dialog>
       <Toast message={toast} onDone={() => setToast(null)} />
     </>
   )

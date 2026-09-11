@@ -53,6 +53,44 @@
 
   --animate-stamp: stamp 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-fade: fade 0.2s ease-out both;
+  --animate-pop: pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+  --animate-toast-in: toast-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
+  --animate-toast-out: toast-out 0.2s ease-in both;
+
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateX(24px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes toast-out {
+    to {
+      opacity: 0;
+      transform: translateX(24px) scale(0.98);
+    }
+  }
+  @keyframes toast-timer {
+    from {
+      transform: scaleX(1);
+    }
+    to {
+      transform: scaleX(0);
+    }
+  }
 
   @keyframes stamp {
     from {
@@ -115,11 +153,25 @@
   padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
 }
 
+/* แถบนับถอยหลังของข้อความแจ้งผล ความยาวแถบคือเวลาที่ข้อความค้างอยู่ */
+.toast-timer {
+  animation: toast-timer 4.2s linear forwards;
+}
+
+/* พื้นหลังของ <dialog> ค่อยๆ มืดลง */
+dialog::backdrop {
+  animation: fade 0.2s ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+  /* แถบนับถอยหลังเป็นตัวจับเวลาปิด ไม่ใช่ลูกเล่น ต้องเดินตามเวลาจริง */
+  .toast-timer {
+    animation-duration: 4.2s !important;
   }
 }

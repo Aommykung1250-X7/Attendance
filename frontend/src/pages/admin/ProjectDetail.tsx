@@ -4,7 +4,8 @@ import { api } from '../../lib/api'
 import { WEEKDAYS, describeShifts, displayName } from '../../lib/format'
 import type { Employee, ProjectDetail as Detail, ShiftEntry } from '../../lib/types'
 import { QuickShiftForm } from '../../components/Schedule'
-import { Button, Card, Dialog, Empty, ErrorNote, Field, Loading, Select, Toast } from '../../components/ui'
+import { Button, Card, Dialog, Empty, ErrorNote, Field, Loading, Select } from '../../components/ui'
+import { Toast, useNotify } from '../../components/notify'
 import { ProjectDialog } from './Projects'
 
 export default function ProjectDetail() {
@@ -14,6 +15,7 @@ export default function ProjectDetail() {
   const [dialog, setDialog] = useState<null | 'edit' | 'assign'>(null)
   const [toast, setToast] = useState<string | null>(null)
   const navigate = useNavigate()
+  const notify = useNotify()
 
   const load = () => api.project(id).then(setData).catch((e) => setError(e.message))
   useEffect(() => {
@@ -55,13 +57,17 @@ export default function ProjectDetail() {
                 variant="danger"
                 size="sm"
                 onClick={async () => {
-                  if (!confirm(`ลบโปรเจก ${p.name}?`)) return
-                  try {
-                    await api.deleteProject(p.id)
-                    navigate('/admin/projects')
-                  } catch (e) {
-                    setError((e as Error).message)
-                  }
+                  const ok = await notify.confirm({
+                    title: `ลบโปรเจก ${p.name}?`,
+                    body: 'โปรเจกนี้ยังไม่มีใครอยู่ ลบแล้วจะหายจากรายการโปรเจก',
+                    confirmLabel: 'ลบโปรเจก',
+                    busyLabel: 'กำลังลบ',
+                    danger: true,
+                    action: () => api.deleteProject(p.id),
+                  })
+                  if (!ok) return
+                  notify.toast(`ลบโปรเจก ${p.name} แล้ว`)
+                  navigate('/admin/projects')
                 }}
               >
                 ลบโปรเจกนี้

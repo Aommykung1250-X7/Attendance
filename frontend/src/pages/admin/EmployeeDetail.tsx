@@ -7,7 +7,8 @@ import { WEEKDAYS, describeShifts, displayName, typeLabel } from '../../lib/form
 import type { EmployeeSchedule, ProjectSummary, ScheduleWriteResult, ShiftEntry } from '../../lib/types'
 import { EmployeeForm, employeeFormError, type EmployeeInput } from '../../components/EmployeeForm'
 import { QuickShiftForm, ShiftRowsEditor, WeekGrid, checkRows } from '../../components/Schedule'
-import { Button, Card, Dialog, ErrorNote, Field, Input, Loading, Select, Toast } from '../../components/ui'
+import { Button, Card, Dialog, ErrorNote, Field, Input, Loading, Select } from '../../components/ui'
+import { Toast, useNotify } from '../../components/notify'
 
 export default function EmployeeDetail() {
   const { id = '' } = useParams()
@@ -183,6 +184,24 @@ function AssignmentEditor({
   const [rows, setRows] = useState<ShiftEntry[]>(shifts.map(({ weekday, startTime, endTime }) => ({ weekday, startTime, endTime })))
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const notify = useNotify()
+
+  const removeFromProject = async () => {
+    let result: ScheduleWriteResult | undefined
+    const ok = await notify.confirm({
+      title: `เอาออกจาก ${projectName}?`,
+      body: 'กะทั้งหมดในโปรเจกนี้จะหายจากตาราง ส่วนประวัติการเช็กชื่อเดิมยังอยู่ครบ',
+      confirmLabel: 'เอาออก',
+      busyLabel: 'กำลังเอาออก',
+      danger: true,
+      action: async () => {
+        result = await api.writeSchedule(employeeId, projectId, [])
+      },
+    })
+    if (!ok || !result) return
+    setEditing(false)
+    onSaved(result, `เอาออกจาก ${projectName} แล้ว`)
+  }
 
   const save = async (next: ShiftEntry[], message: string) => {
     const err = checkRows(next)
@@ -221,7 +240,7 @@ function AssignmentEditor({
           )}
           <ShiftRowsEditor value={rows} onChange={setRows} />
           <div className="mt-4 flex flex-wrap justify-between gap-2 border-t border-rule pt-4">
-            <Button size="sm" variant="danger" disabled={busy} onClick={() => confirm(`เอาออกจาก ${projectName}? กะทั้งหมดในโปรเจกนี้จะหายจากตาราง (ประวัติเดิมยังอยู่)`) && save([], `เอาออกจาก ${projectName} แล้ว`)}>
+            <Button size="sm" variant="danger" disabled={busy} onClick={removeFromProject}>
               เอาออกจากโปรเจกนี้
             </Button>
             <div className="flex gap-2">
@@ -366,14 +385,26 @@ function AddToProject({
 
 function DangerZone({ name, active, onHide, onRestore, onPurge }: { name: string; active: boolean; onHide: () => Promise<void>; onRestore: () => Promise<void>; onPurge: () => void }) {
   const [busy, setBusy] = useState(false)
+  const notify = useNotify()
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
     try {
       await fn()
+    } catch (e) {
+      notify.toast('ทำรายการไม่สำเร็จ', { tone: 'error', detail: (e as Error).message })
     } finally {
       setBusy(false)
     }
   }
+  const hide = () =>
+    notify.confirm({
+      title: `ลบ ${name}?`,
+      body: `${name} จะหายจากทุกหน้าและไม่ต้องมาเช็กชื่อ ประวัติเดิมยังอยู่ และกู้คืนได้ภายหลัง`,
+      confirmLabel: 'ลบ (ซ่อน)',
+      busyLabel: 'กำลังลบ',
+      danger: true,
+      action: onHide,
+    })
   return (
     <section className="mt-8 rounded-xl border border-rule p-5">
       <h2 className="display text-lg font-semibold">ลบพนักงาน</h2>
@@ -383,7 +414,7 @@ function DangerZone({ name, active, onHide, onRestore, onPurge }: { name: string
             ลบแล้ว {name} จะหายจากทุกหน้า ล็อกอินไม่ได้ และไม่ต้องมาเช็กชื่อ แต่ประวัติเดิมยังอยู่ รายงานของเดือนที่ผ่านมาจึงไม่เปลี่ยน (เช่นนักศึกษาที่จบแล้ว)
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
-            <Button variant="danger" disabled={busy} onClick={() => confirm(`ลบ ${name}? กู้คืนได้ภายหลัง`) && run(onHide)}>
+            <Button variant="danger" disabled={busy} onClick={hide}>
               ลบ (ซ่อน)
             </Button>
           </div>

@@ -1,5 +1,6 @@
 import { BrowserRouter, Link, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { NotifyProvider } from './components/notify'
 import CheckIn from './pages/CheckIn'
 import Kiosk from './pages/Kiosk'
 import AdminLayout from './pages/admin/AdminLayout'
@@ -16,7 +17,9 @@ import { loginUrl } from './lib/api'
 export default function App() {
   return (
     <BrowserRouter>
-      <AppRoutes />
+      <NotifyProvider>
+        <AppRoutes />
+      </NotifyProvider>
     </BrowserRouter>
   )
 }
