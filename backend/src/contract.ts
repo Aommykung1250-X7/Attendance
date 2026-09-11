@@ -68,6 +68,8 @@ export interface KioskBoard {
   tokenExpiresIn: number // วินาที
   summary: { expected: number; arrived: number; late: number; pending: number; leave: number; absent: number }
   groups: { startTime: string; label: string; rows: ShiftInstance[] }[]
+  /** ทุกกะของวันนี้ ใช้แสดงว่าใครต้องมาและใครมาแล้ว */
+  today: ShiftInstance[]
 }
 
 /** สิ่งที่หน้าเช็กชื่อบนมือถือได้รับกลับมา ตรงกับ spec หัวข้อ 8 */

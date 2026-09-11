@@ -227,6 +227,7 @@ export const mockApi: Api = {
       tokenExpiresIn: settings.qrTokenTtl,
       summary: summary(rows),
       groups,
+      today: rows.map(strip),
     })
   },
 

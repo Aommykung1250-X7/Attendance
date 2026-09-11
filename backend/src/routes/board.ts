@@ -70,6 +70,7 @@ export async function boardRoutes(app: FastifyInstance) {
       tokenExpiresIn: s.qrTokenTtl,
       summary: summarize(rows),
       groups: boardGroups(rows, time),
+      today: rows.map(({ overridden: _o, historyCount: _h, ...r }) => r),
     }
     return board
   })
