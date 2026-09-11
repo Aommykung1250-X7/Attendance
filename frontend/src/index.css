@@ -1,41 +1,55 @@
 @import 'tailwindcss';
 
 /*
- * โทนของระบบ: กระดาษกับหมึก
- * หน้าจอติดผนังเป็นพื้นหมึกเข้ม (อ่านจากระยะไกล) ส่วนมือถือและหน้าแอดมินเป็นพื้นกระดาษ
- * สีสถานะมีสองชุด ชุดบนพื้นหมึกสว่างกว่าเพื่อให้อ่านออกบนพื้นเข้ม
+ * โทนของระบบ: เทาเข้ม #212529 เป็นสีหลัก ส้ม #F7941D เป็นสีเน้น (จากชุดสีของบริษัท)
+ * ส้มหลักสว่างเกินกว่าจะใส่ตัวหนังสือสีขาว (คอนทราสต์ 2.3) ปุ่มส้มจึงใช้ตัวหนังสือสีเข้ม #111315 (8.2)
+ * ตัวหนังสือสีส้มบนพื้นขาวใช้ส้มเข้ม #B4450E (5.5) แทน เพราะส้มในชุดสีอ่อนเกินสำหรับตัวเล็ก
+ * สีสถานะ มา/ขาด/ลา ยังเป็นเขียว/แดง/น้ำเงิน เพราะคนอ่านความหมายจากสีพวกนี้อยู่แล้ว
  */
 @theme {
   --font-sans: 'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Anuphan', 'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif;
 
-  --color-ink: #101a2b;
-  --color-ink-2: #16233a;
-  --color-ink-rule: #283752;
-  --color-chalk: #f4f1ea;
-  --color-chalk-dim: #97a3b8;
+  /* ชุดเทา (neutral) */
+  --color-ink: #212529;
+  --color-ink-2: #191c1f;
+  --color-ink-3: #111315;
+  --color-ink-rule: #4e5054;
+  --color-chalk: #ffffff;
+  --color-chalk-dim: #a7a7a9;
 
-  --color-paper: #f6f4ef;
+  /* ชุดส้ม (brand) */
+  --color-brand: #f7941d;
+  --color-brand-strong: #f4741e;
+  --color-brand-deep: #e5541a;
+  --color-brand-300: #f9a94a;
+  --color-brand-200: #fabf77;
+  --color-brand-100: #fcd4a5;
+  --color-brand-50: #fdead2;
+  --color-brand-text: #b4450e;
+  --color-on-brand: #111315;
+
+  --color-paper: #f4f4f5;
   --color-surface: #ffffff;
-  --color-sunken: #efece5;
-  --color-text: #141b26;
-  --color-text-dim: #5e6776;
-  --color-rule: #e3dfd6;
-  --color-rule-strong: #cfc9bd;
+  --color-sunken: #ececed;
+  --color-text: #212529;
+  --color-text-dim: #4e5054;
+  --color-rule: #d3d3d4;
+  --color-rule-strong: #a7a7a9;
 
-  --color-accent: #101a2b;
-  --color-focus: #3a67d6;
+  --color-accent: #f7941d;
+  --color-focus: #e5541a;
 
   --color-ontime: #1d7a4c;
-  --color-ontime-bg: #e3f2ea;
-  --color-late: #a85f00;
-  --color-late-bg: #fbeed9;
+  --color-ontime-bg: #e4f3ea;
+  --color-late: #b4450e;
+  --color-late-bg: #fdead2;
   --color-absent: #b3261e;
   --color-absent-bg: #f9e3e1;
   --color-leave: #3b5998;
   --color-leave-bg: #e5eaf6;
-  --color-pending: #6f7786;
-  --color-pending-bg: #ecebe7;
+  --color-pending: #7a7c7f;
+  --color-pending-bg: #ececed;
 
   --animate-stamp: stamp 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-fade: fade 0.2s ease-out both;
@@ -60,13 +74,13 @@
   }
 }
 
-/* บนพื้นหมึก สีสถานะต้องสว่างขึ้น */
+/* บนพื้นเทาเข้ม (แถบเมนูแอดมิน) สีสถานะต้องสว่างขึ้น */
 .theme-ink {
   --color-ontime: #63d69c;
-  --color-late: #f2b654;
+  --color-late: #f9a94a;
   --color-absent: #ff8f85;
   --color-leave: #a3bbff;
-  --color-pending: #8e99ab;
+  --color-pending: #a7a7a9;
 }
 
 @layer base {

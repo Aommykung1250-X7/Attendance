@@ -11,7 +11,7 @@ export { cx }
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-solid'
 
 const VARIANT: Record<Variant, string> = {
-  primary: 'bg-ink text-chalk hover:bg-ink-2 disabled:bg-ink/50',
+  primary: 'bg-brand text-on-brand hover:bg-brand-strong disabled:bg-brand-100 disabled:text-ink-rule',
   secondary: 'bg-surface text-text border border-rule-strong hover:bg-sunken disabled:text-text-dim',
   ghost: 'text-text-dim hover:bg-sunken hover:text-text',
   // ปุ่มอันตรายแบบเส้นขอบ วางรองจากปุ่มหลักได้โดยไม่แย่งความเด่น

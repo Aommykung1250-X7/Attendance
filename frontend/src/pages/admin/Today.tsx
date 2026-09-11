@@ -166,7 +166,7 @@ function Summary({ log, filter, setFilter }: { log: DayLog; filter: Filter; setF
           key={c.key}
           onClick={() => setFilter(filter === c.key ? 'all' : c.key)}
           aria-pressed={filter === c.key}
-          className={cx('bg-surface px-4 py-3.5 text-left transition-colors hover:bg-sunken', filter === c.key && c.key !== 'all' && 'bg-sunken shadow-[inset_0_-2px_0_var(--color-ink)]')}
+          className={cx('bg-surface px-4 py-3.5 text-left transition-colors hover:bg-sunken', filter === c.key && c.key !== 'all' && 'bg-sunken shadow-[inset_0_-3px_0_var(--color-brand)]')}
         >
           <span className={cx('display tnum block text-[28px] leading-none font-semibold', c.n > 0 && c.tone)}>{c.n}</span>
           <span className="mt-1.5 block text-[13px] text-text-dim">{c.label}</span>

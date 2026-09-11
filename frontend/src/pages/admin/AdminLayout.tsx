@@ -54,7 +54,7 @@ export default function AdminLayout() {
         {state === 'error' && <Gate title="เชื่อมต่อเซิร์ฟเวอร์ไม่ได้" body="ลองรีเฟรชหน้านี้อีกครั้ง" />}
         {state === 'login' && (
           <Gate title="หน้าแอดมิน" body="เข้าสู่ระบบด้วยบัญชี Google ที่ถูกกำหนดเป็นแอดมิน">
-            <a href={loginUrl()} className="flex min-h-12 items-center justify-center gap-3 rounded-lg bg-ink px-5 text-base font-medium text-chalk hover:bg-ink-2">
+            <a href={loginUrl()} className="flex min-h-12 items-center justify-center gap-3 rounded-lg bg-ink px-5 text-base font-medium text-chalk hover:bg-ink-3">
               <GoogleMark /> เข้าสู่ระบบด้วย Google
             </a>
           </Gate>
@@ -82,7 +82,10 @@ export default function AdminLayout() {
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between px-5 pt-4 pb-3 lg:px-6 lg:pt-7 lg:pb-6">
             <div>
-              <p className="display text-lg leading-tight font-semibold">เช็กชื่อเข้างาน</p>
+              <p className="display flex items-center gap-2 text-lg leading-tight font-semibold">
+                <span aria-hidden className="size-2.5 rounded-full bg-brand" />
+                เช็กชื่อเข้างาน
+              </p>
               <p className="text-[13px] text-chalk-dim">ฝั่งแอดมิน{USE_MOCK && ' · ข้อมูลจำลอง'}</p>
             </div>
             <button onClick={logout} className="rounded-md px-2 py-1.5 text-[13px] text-chalk-dim hover:text-chalk lg:hidden">
@@ -98,7 +101,7 @@ export default function AdminLayout() {
                 className={({ isActive }) =>
                   cx(
                     'flex min-h-10 shrink-0 items-center gap-3 rounded-lg px-3 text-[15px] transition-colors',
-                    isActive ? 'bg-chalk/12 font-medium text-chalk' : 'text-chalk-dim hover:bg-chalk/6 hover:text-chalk',
+                    isActive ? 'bg-brand font-medium text-on-brand' : 'text-chalk-dim hover:bg-chalk/6 hover:text-chalk',
                   )
                 }
               >

@@ -173,7 +173,7 @@ function Total({
     <button
       onClick={() => setFocus(active ? 'all' : focus)}
       aria-pressed={active}
-      className={cx('bg-surface px-5 py-4 text-left transition-colors hover:bg-sunken', active && 'bg-sunken shadow-[inset_0_-2px_0_var(--color-ink)]')}
+      className={cx('bg-surface px-5 py-4 text-left transition-colors hover:bg-sunken', active && 'bg-sunken shadow-[inset_0_-3px_0_var(--color-brand)]')}
     >
       <span className={cx('display tnum block text-[32px] leading-none font-semibold', n !== undefined && n > 0 && tone)}>
         {children ?? (

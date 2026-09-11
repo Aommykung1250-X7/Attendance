@@ -47,7 +47,7 @@ export default function Settings() {
               <Button size="sm" onClick={copy}>
                 คัดลอก
               </Button>
-              <a href={s.displayUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center rounded-lg bg-ink px-3 text-sm font-medium text-chalk hover:bg-ink-2">
+              <a href={s.displayUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center rounded-lg bg-brand px-3 text-sm font-medium text-on-brand hover:bg-brand-strong">
                 เปิดหน้าจอ QR ↗
               </a>
               <Button size="sm" variant="danger" onClick={() => setConfirmRotate(true)}>

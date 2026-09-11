@@ -120,7 +120,7 @@ export default function ImportExcel() {
           <p className="display animate-stamp text-2xl font-semibold text-ontime">นำเข้าเรียบร้อย {stage.applied} แถว</p>
           <p className="mt-2 text-[15px] text-text-dim">ตารางใหม่มีผลตั้งแต่วันนี้ ประวัติของวันก่อนหน้าไม่เปลี่ยน</p>
           <div className="mt-6 flex justify-center gap-2">
-            <Link to="/admin/employees" className="inline-flex min-h-11 items-center rounded-lg bg-ink px-4 font-medium text-chalk">
+            <Link to="/admin/employees" className="inline-flex min-h-11 items-center rounded-lg bg-brand px-4 font-medium text-on-brand hover:bg-brand-strong">
               ดูรายชื่อพนักงาน
             </Link>
             <Button onClick={() => setStage({ kind: 'idle' })}>นำเข้าไฟล์อื่น</Button>

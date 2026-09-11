@@ -64,7 +64,7 @@ export default function Kiosk() {
     QRCode.toCanvas(canvas, `${location.origin}/checkin?token=${token}`, {
       width: 420,
       margin: 1,
-      color: { dark: '#141b26', light: '#ffffff' },
+      color: { dark: '#212529', light: '#ffffff' },
     }).then(() => {
       // ไลบรารีใส่ขนาดเป็น inline style ล้างออกให้ขนาดตาม class (วาดใหญ่แล้วย่อ จึงคมบนจอความละเอียดสูง)
       canvas.style.width = ''
@@ -125,10 +125,10 @@ export default function Kiosk() {
 
 function Summary({ summary }: { summary?: KioskBoard['summary'] }) {
   const s = summary ?? { expected: 0, arrived: 0, late: 0, pending: 0, leave: 0, absent: 0 }
-  const cells: { label: string; n: number; tone: string }[] = [
+  const cells: { label: string; n: number; tone: string; bg?: string }[] = [
     { label: 'ต้องมา', n: s.expected, tone: 'text-text' },
-    { label: 'มาแล้ว', n: s.arrived, tone: 'text-ontime' },
-    { label: 'ยังไม่มา', n: s.pending, tone: 'text-text' },
+    { label: 'มาแล้ว', n: s.arrived, tone: 'text-ontime', bg: 'bg-ontime-bg' },
+    { label: 'ยังไม่มา', n: s.pending, tone: 'text-brand-text', bg: 'bg-brand-50' },
     { label: 'สาย', n: s.late, tone: 'text-late' },
     { label: 'ลา', n: s.leave, tone: 'text-leave' },
     { label: 'ขาด', n: s.absent, tone: 'text-absent' },
@@ -136,7 +136,7 @@ function Summary({ summary }: { summary?: KioskBoard['summary'] }) {
   return (
     <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-rule bg-rule shadow-sm">
       {cells.map((c) => (
-        <div key={c.label} className="bg-surface px-[clamp(10px,1vw,18px)] py-[clamp(8px,1.5vh,16px)]">
+        <div key={c.label} className={`${c.bg ?? 'bg-surface'} px-[clamp(10px,1vw,18px)] py-[clamp(8px,1.5vh,16px)]`}>
           <dd className={`display tnum text-[clamp(28px,5.4vh,58px)] leading-none font-semibold ${c.n > 0 ? c.tone : 'text-text-dim/40'}`}>{c.n}</dd>
           <dt className="mt-[0.4em] text-[clamp(12px,1.7vh,18px)] text-text-dim">{c.label}</dt>
         </div>
@@ -189,8 +189,8 @@ function Roster({ board, error, now }: { board: KioskBoard | null; error: string
     body = (
       <div ref={fitRef} className="flex min-h-0 flex-1 flex-col text-[calc(clamp(14px,1.2vw,26px)*var(--fit,1))]">
         {/* ฝั่งที่มีชื่อมากกว่าได้พื้นที่มากกว่า (ระหว่าง 35–65%) เช้าๆ ฝั่งยังไม่มากว้าง สายๆ ฝั่งมาแล้วกว้าง */}
-        <div className="grid min-h-0 flex-1 gap-[1.2em]" style={{ gridTemplateColumns: split(pending.length, arrived.length) }}>
-          <Column title="ยังไม่มา" count={pending.length} empty="มาครบทุกคนแล้ว">
+        <div className="grid min-h-0 flex-1 gap-[0.9em]" style={{ gridTemplateColumns: split(pending.length, arrived.length) }}>
+          <Column tone="pending" title="ยังไม่มา" count={pending.length} empty="มาครบทุกคนแล้ว">
             {pending.map((r) => {
               const overdue = minutesOf(r.startTime) <= nowMin
               return (
@@ -203,7 +203,7 @@ function Roster({ board, error, now }: { board: KioskBoard | null; error: string
               )
             })}
           </Column>
-          <Column title="มาแล้ว" count={arrived.length} empty="ยังไม่มีใครสแกน">
+          <Column tone="arrived" title="มาแล้ว" count={arrived.length} empty="ยังไม่มีใครสแกน">
             {arrived.map((r) => {
               const fresh = r.scannedAt && r.recordedBy === 'self' && nowSec - secondsOf(r.scannedAt) < 90 && nowSec >= secondsOf(r.scannedAt)
               return (
@@ -242,15 +242,26 @@ function split(a: number, b: number) {
   return `minmax(0,${r.toFixed(3)}fr) minmax(0,${(1 - r).toFixed(3)}fr)`
 }
 
-function Column({ title, count, empty, children }: { title: string; count: number; empty: string; children: ReactNode }) {
+/**
+ * สองช่องมีพื้นหลังคนละสี มองจากไกลก็แยกออกทันที
+ * ยังไม่มา = พื้นส้มอ่อน (สีหลักของบริษัท) · มาแล้ว = พื้นเขียวอ่อน (สีเดียวกับสถานะ "ตรงเวลา")
+ */
+const COLUMN_TONE = {
+  pending: { panel: 'bg-brand-50 border-brand-100', bar: 'bg-brand', count: 'bg-brand text-on-brand' },
+  arrived: { panel: 'bg-ontime-bg border-ontime/20', bar: 'bg-ontime', count: 'bg-ontime text-white' },
+} as const
+
+function Column({ tone, title, count, empty, children }: { tone: keyof typeof COLUMN_TONE; title: string; count: number; empty: string; children: ReactNode }) {
+  const t = COLUMN_TONE[tone]
   return (
-    <div className="flex min-h-0 min-w-0 flex-col">
-      <div className="mb-[0.5em] flex items-baseline gap-[0.5em] border-b-2 border-rule pb-[0.35em]">
-        <h2 className="display text-[1.35em] font-semibold">{title}</h2>
-        <span className="display tnum text-[1.35em] text-text-dim">{count}</span>
+    <div className={`flex min-h-0 min-w-0 flex-col rounded-[0.8em] border px-[0.75em] pt-[0.7em] pb-[0.5em] ${t.panel}`}>
+      <div className="mb-[0.45em] flex items-center gap-[0.5em] px-[0.35em]">
+        <span aria-hidden className={`h-[1.1em] w-[0.28em] rounded-full ${t.bar}`} />
+        <h2 className="display text-[1.35em] leading-none font-semibold">{title}</h2>
+        <span className={`display tnum ml-auto min-w-[1.9em] rounded-full px-[0.55em] py-[0.12em] text-center text-[1.1em] font-semibold ${t.count}`}>{count}</span>
       </div>
       {count === 0 ? (
-        <p className="pt-[0.5em] text-text-dim">{empty}</p>
+        <p className="px-[0.35em] pt-[0.4em] text-text-dim">{empty}</p>
       ) : (
         // ถ้าคนเยอะ รายชื่อไหลต่อเป็นคอลัมน์ที่สองในกล่องเดียวกัน
         <ul data-fit className="min-h-0 flex-1 overflow-hidden [column-fill:auto] [column-gap:1.4em] [column-width:11em]">
@@ -264,7 +275,7 @@ function Column({ title, count, empty, children }: { title: string; count: numbe
 function Item({ row, dot, fresh, children }: { row: ShiftInstance; dot: 'ring' | 'ontime' | 'late'; fresh?: boolean; children: ReactNode }) {
   const dotCls = dot === 'ring' ? 'ring-[0.12em] ring-pending ring-inset' : dot === 'late' ? 'bg-late' : 'bg-ontime'
   return (
-    <li className={`flex break-inside-avoid items-center gap-[0.55em] rounded-[0.4em] px-[0.35em] py-[0.32em] ${fresh ? 'animate-stamp bg-ontime-bg' : ''}`}>
+    <li className={`flex break-inside-avoid items-center gap-[0.55em] rounded-[0.4em] px-[0.35em] py-[0.32em] ${fresh ? 'animate-stamp bg-surface shadow-sm ring-1 ring-ontime/40' : ''}`}>
       <span aria-hidden className={`size-[0.55em] shrink-0 rounded-full ${dotCls}`} />
       <span className="min-w-0 flex-1 truncate">
         <span className="display font-medium">{row.nickname}</span>
