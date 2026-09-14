@@ -736,6 +736,9 @@ export async function templateWorkbook(txOrDb: Tx | typeof db = db): Promise<Buf
   const wsProjects = wb.addWorksheet('โปรเจก')
   const PROJECT_HEADERS = ['ชื่อโปรเจก', 'เวลาเริ่มเริ่มต้น', 'เวลาเลิกเริ่มต้น', 'หมายเหตุ']
   wsProjects.addRow(PROJECT_HEADERS)
+  wsProjects.addRow(['TurnPRO', '09:00', '18:00', 'ตัวอย่าง ลบหรือแก้ไขได้'])
+  wsProjects.addRow(['LU-Phuket', '09:30', '19:00', 'ตัวอย่าง ลบหรือแก้ไขได้'])
+
   const pHeader = wsProjects.getRow(1)
   pHeader.font = { bold: true }
   pHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EEF6' } }
@@ -756,22 +759,6 @@ export async function templateWorkbook(txOrDb: Tx | typeof db = db): Promise<Buf
         error: 'เลือกเวลาจาก Dropdown หรือพิมพ์ในรูปแบบ HH:MM เช่น 09:00',
       }
     }
-  }
-
-  let existingProjects: ProjectRow[] = []
-  try {
-    existingProjects = await txOrDb.select().from(schema.projects)
-  } catch {
-    // กรณี mock หรือไม่มี database
-  }
-
-  if (existingProjects.length > 0) {
-    for (const p of existingProjects) {
-      wsProjects.addRow([p.name, p.defaultStart, p.defaultEnd, ''])
-    }
-  } else {
-    wsProjects.addRow(['TurnPRO', '09:00', '18:00', 'ตัวอย่าง'])
-    wsProjects.addRow(['LU-Phuket', '09:30', '19:00', 'ตัวอย่าง'])
   }
 
   // 3. ชีต 'เวลา' (รายการเวลาสำหรับ Dropdown)

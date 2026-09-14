@@ -527,6 +527,9 @@ describe('นำเข้า Excel', () => {
     expect(ws.getCell('N2').dataValidation?.formulae).toEqual(["='เวลา'!$A$2:$A$150"])
 
     const wsProjects = wb.getWorksheet('โปรเจก')!
+    expect(wsProjects.getCell('A2').value).toBe('TurnPRO')
+    expect(wsProjects.getCell('A3').value).toBe('LU-Phuket')
+    expect(wsProjects.getCell('A201').value).toBeNull()
     expect(wsProjects.getCell('B2').dataValidation?.type).toBe('list')
     expect(wsProjects.getCell('B2').dataValidation?.formulae).toEqual(["='เวลา'!$A$2:$A$150"])
 
