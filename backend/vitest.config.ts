@@ -7,7 +7,7 @@ export default defineConfig({
     testTimeout: 20_000,
     env: {
       NODE_ENV: 'test',
-      DATABASE_URL: process.env.TEST_DATABASE_URL ?? 'postgresql://att:att@localhost:5432/attendance_test',
+      DATABASE_URL: process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL ?? 'postgresql://attendance:attendance@localhost:5433/attendance',
       SESSION_SECRET: 'test-secret-test-secret-test-secret-000',
       GOOGLE_CLIENT_ID: 'test-client.apps.googleusercontent.com',
       GOOGLE_CLIENT_SECRET: 'test-secret',

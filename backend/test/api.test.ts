@@ -517,10 +517,22 @@ describe('นำเข้า Excel', () => {
     // ตรวจสอบชีตในไฟล์ตัวอย่าง
     const wb = new ExcelJS.Workbook()
     await wb.xlsx.load(r.rawPayload as any)
-    expect(wb.worksheets.map((s) => s.name)).toEqual(['ตาราง', 'โปรเจก', 'วิธีกรอก'])
+    expect(wb.worksheets.map((s) => s.name)).toEqual(['ตาราง', 'โปรเจก', 'เวลา', 'วิธีกรอก'])
     const ws = wb.getWorksheet('ตาราง')!
     expect(ws.getCell('D2').dataValidation?.type).toBe('list')
     expect(ws.getCell('D2').dataValidation?.formulae).toEqual(["='โปรเจก'!$A$2:$A$200"])
+    expect(ws.getCell('M2').dataValidation?.type).toBe('list')
+    expect(ws.getCell('M2').dataValidation?.formulae).toEqual(["='เวลา'!$A$2:$A$150"])
+    expect(ws.getCell('N2').dataValidation?.type).toBe('list')
+    expect(ws.getCell('N2').dataValidation?.formulae).toEqual(["='เวลา'!$A$2:$A$150"])
+
+    const wsProjects = wb.getWorksheet('โปรเจก')!
+    expect(wsProjects.getCell('B2').dataValidation?.type).toBe('list')
+    expect(wsProjects.getCell('B2').dataValidation?.formulae).toEqual(["='เวลา'!$A$2:$A$150"])
+
+    const wsTimes = wb.getWorksheet('เวลา')!
+    expect(wsTimes.rowCount).toBeGreaterThan(50)
+    expect(wsTimes.getCell('A2').value).toBe('06:00')
   })
 })
 
