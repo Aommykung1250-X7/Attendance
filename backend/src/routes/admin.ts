@@ -120,6 +120,7 @@ export async function adminRoutes(app: FastifyInstance) {
   app.get('/api/settings', async () => settings.readAppSettings())
   app.patch('/api/settings', async (req) => settings.patchAppSettings(admin(req), req.body))
   app.post('/api/settings/display-key', async (req) => settings.rotateDisplayKey(admin(req)))
+  app.post('/api/settings/reset-attendance', async (req) => settings.resetAttendanceData(admin(req)))
   app.get('/api/holidays', async (req) => settings.listHolidays((req.query as { year?: string }).year))
   app.post('/api/holidays', async (req) => settings.addHoliday(admin(req), req.body))
   app.delete('/api/holidays/:date', async (req) => settings.removeHoliday(admin(req), (req.params as { date: string }).date))

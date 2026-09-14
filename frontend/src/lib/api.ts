@@ -119,6 +119,7 @@ const realApi = {
   settings: () => get<AppSettings>('/settings'),
   updateSettings: (s: { qrTokenTtl: number }) => patch<AppSettings>('/settings', s),
   rotateDisplayKey: () => post<AppSettings>('/settings/display-key'),
+  resetAttendance: () => post<{ ok: true; deletedAttendance: number; deletedOverrides: number }>('/settings/reset-attendance'),
   holidays: (year?: string) => get<Holiday[]>(`/holidays${year ? `?year=${year}` : ''}`),
   addHoliday: (h: Holiday) => post<Holiday>('/holidays', h),
   removeHoliday: (date: string) => del<{ ok: true }>(`/holidays/${date}`),

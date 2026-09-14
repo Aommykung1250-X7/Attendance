@@ -51,6 +51,24 @@ export default function Settings() {
     notify.toast('สร้างลิงก์ใหม่แล้ว', { detail: 'อย่าลืมเปิดลิงก์ใหม่บนจอในออฟฟิศ' })
   }
 
+  const resetAttendance = async () => {
+    let res: { deletedAttendance: number; deletedOverrides: number } | undefined
+    const ok = await notify.confirm({
+      title: 'รีเซ็ตเฉพาะประวัติการสแกน QR?',
+      body: 'ระบบจะลบเฉพาะประวัติการสแกน QR และการแก้สถานะย้อนหลัง (ทำให้สถิติการเข้างานในรายงานรายเดือนและหน้าจอวันนี้กลับเป็น 0) ส่วนรายชื่อพนักงาน โปรเจกต์ ตารางกะ วันหยุด และการตั้งค่าทั้งหมดจะยังอยู่ครบเหมือนเดิม',
+      confirmLabel: 'รีเซ็ตประวัติการสแกน',
+      busyLabel: 'กำลังล้างประวัติการสแกน',
+      danger: true,
+      action: async () => {
+        res = await api.resetAttendance()
+      },
+    })
+    if (!ok || !res) return
+    notify.toast('รีเซ็ตประวัติการสแกนเรียบร้อยแล้ว', {
+      detail: `ลบประวัติการสแกน ${res.deletedAttendance} รายการ และการแก้สถานะ ${res.deletedOverrides} รายการ (ข้อมูลพนักงานและตารางกะยังอยู่ครบ)`,
+    })
+  }
+
   return (
     <>
       <PageHeader title="ตั้งค่า" />
@@ -102,6 +120,20 @@ export default function Settings() {
           </Card>
 
           <Holidays onToast={setToast} />
+
+          <Card className="p-5 xl:col-span-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="display text-lg font-semibold text-absent">รีเซ็ตประวัติการสแกน QR เข้างาน</h2>
+                <p className="mt-1 text-[15px] leading-relaxed text-text-dim">
+                  ลบเฉพาะประวัติการสแกน QR และการบันทึกเวลาเข้างาน เพื่อให้สถิติในรายงานรายเดือนกลับเป็น 0 (สำหรับล้างข้อมูลทดสอบก่อนเริ่มใช้งานจริง) ข้อมูลพนักงาน, โปรเจกต์, ตารางกะ, และวันหยุดจะไม่ได้รับผลกระทบใดๆ ทั้งสิ้น
+                </p>
+              </div>
+              <Button variant="danger" className="shrink-0" onClick={resetAttendance}>
+                รีเซ็ตประวัติการสแกน...
+              </Button>
+            </div>
+          </Card>
         </div>
       )}
 

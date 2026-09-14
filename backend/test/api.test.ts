@@ -516,7 +516,7 @@ describe('นำเข้า Excel', () => {
 
     // ตรวจสอบชีตในไฟล์ตัวอย่าง
     const wb = new ExcelJS.Workbook()
-    await wb.xlsx.load(r.rawPayload)
+    await wb.xlsx.load(r.rawPayload as any)
     expect(wb.worksheets.map((s) => s.name)).toEqual(['ตาราง', 'โปรเจก', 'วิธีกรอก'])
     const ws = wb.getWorksheet('ตาราง')!
     expect(ws.getCell('D2').dataValidation?.type).toBe('list')
@@ -555,5 +555,23 @@ describe('วันหยุดและตั้งค่า', () => {
     expect(s.displayKey).not.toBe(displayKey)
     expect(s.displayUrl).toBe(`${ORIGIN}/display/${s.displayKey}`)
     expect((await new Client().get(`/api/board/${displayKey}`)).statusCode).toBe(404)
+  })
+
+  it('รีเซ็ตข้อมูลการเข้างาน: ล้าง attendance และ status_overrides หมด แต่พนักงานและโปรเจกต์ยังอยู่ครบ', async () => {
+    // รีเซ็ตข้อมูลการเข้างาน
+    const res = (await admin.json('POST', '/api/settings/reset-attendance')).body
+    expect(res.ok).toBe(true)
+    expect(res.deletedAttendance).toBeGreaterThanOrEqual(0)
+
+    // ตรวจสอบว่าพนักงานและโปรเจกต์ยังอยู่ครบ
+    const emps = (await admin.json('GET', '/api/employees')).body
+    expect(emps.length).toBeGreaterThan(0)
+    const projs = (await admin.json('GET', '/api/projects')).body
+    expect(projs.length).toBeGreaterThan(0)
+
+    // ตรวจสอบว่ารายงานรายเดือนของต้นเป็น 0
+    const rep = (await admin.json('GET', `/api/report/${ids.ton}?month=2026-09`)).body
+    expect(rep.totals.present).toBe(0)
+    expect(rep.totals.late).toBe(0)
   })
 })

@@ -59,3 +59,25 @@ export async function removeHoliday(adminEmail: string, date: string) {
   await audit(db, { adminEmail, action: 'holiday_remove', date, before: h })
   return { ok: true }
 }
+
+/** รีเซ็ตข้อมูลการเข้างานและการแก้สถานะทั้งหมด (ใช้สำหรับล้างข้อมูลทดสอบก่อนเปิดใช้งานจริง) */
+export async function resetAttendanceData(adminEmail: string) {
+  return db.transaction(async (tx) => {
+    const deletedAttendance = await tx.delete(schema.attendance).returning()
+    const deletedOverrides = await tx.delete(schema.statusOverrides).returning()
+    await audit(tx, {
+      adminEmail,
+      action: 'reset_attendance_data',
+      after: {
+        deletedAttendanceCount: deletedAttendance.length,
+        deletedOverridesCount: deletedOverrides.length,
+      },
+    })
+    return {
+      ok: true as const,
+      deletedAttendance: deletedAttendance.length,
+      deletedOverrides: deletedOverrides.length,
+    }
+  })
+}
+

@@ -430,6 +430,7 @@ export const mockApi: Api = {
     settings.displayUrl = `${location.origin}/display/${settings.displayKey}`
     return wait(settings)
   },
+  resetAttendance: async () => wait({ ok: true as const, deletedAttendance: 24, deletedOverrides: 5 }, 500),
   holidays: async (year) => wait(holidays.filter((h) => !year || h.date.startsWith(year)).sort((a, b) => a.date.localeCompare(b.date))),
   addHoliday: async (h) => {
     holidays.push(h)
