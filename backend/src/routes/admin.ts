@@ -8,7 +8,7 @@ import { COOKIE, createSession, deleteSession, readSession, TTL } from '../lib/s
 import { isValidDate, isValidMonth, localParts } from '../lib/time.js'
 import { shiftHistory } from '../services/audit.js'
 import { adminAction, dayLog } from '../services/day-admin.js'
-import { commitImport, parseWorkbook, previewImport, templateWorkbook, type ImportRow } from '../services/import.js'
+import { commitImport, parseWorkbook, previewImport, templateWorkbook, type DeclaredProject, type ImportRow } from '../services/import.js'
 import * as people from '../services/people.js'
 import { monthlyReport } from '../services/report.js'
 import * as settings from '../services/settings.js'
@@ -86,19 +86,19 @@ export async function adminRoutes(app: FastifyInstance) {
     const file = await req.file()
     if (!file) throw badRequest('เลือกไฟล์ Excel')
     const buf = await file.toBuffer()
-    const { rows, problems } = await parseWorkbook(buf)
-    const preview = await previewImport(rows, problems)
+    const { rows, problems, declaredProjects } = await parseWorkbook(buf)
+    const preview = await previewImport(rows, problems, declaredProjects)
     const key = importKey(req.cookies[COOKIE.auth]!)
-    if (preview.ok) await createSession('import', { rows }, TTL.import, key)
+    if (preview.ok) await createSession('import', { rows, declaredProjects }, TTL.import, key)
     else await deleteSession(key)
     return preview
   })
 
   app.post('/api/import/commit', async (req) => {
     const key = importKey(req.cookies[COOKIE.auth]!)
-    const pending = await readSession<{ rows: ImportRow[] }>('import', key)
+    const pending = await readSession<{ rows: ImportRow[]; declaredProjects?: DeclaredProject[] }>('import', key)
     if (!pending) throw badRequest('ไม่พบไฟล์ที่รอยืนยัน หรือหมดเวลาแล้ว กรุณาอัปโหลดใหม่')
-    const result = await commitImport(admin(req), pending.data.rows)
+    const result = await commitImport(admin(req), pending.data.rows, pending.data.declaredProjects)
     await deleteSession(key)
     return result
   })

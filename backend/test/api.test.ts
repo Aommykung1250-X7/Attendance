@@ -62,6 +62,15 @@ async function xlsx(rows: unknown[][]): Promise<Buffer> {
   rows.forEach((r) => ws.addRow(r))
   return Buffer.from(await wb.xlsx.writeBuffer())
 }
+
+async function multiSheetXlsx(sheets: { name: string; rows: unknown[][] }[]): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook()
+  for (const s of sheets) {
+    const ws = wb.addWorksheet(s.name)
+    s.rows.forEach((r) => ws.addRow(r))
+  }
+  return Buffer.from(await wb.xlsx.writeBuffer())
+}
 const HEAD = ['ชื่อเล่น', 'Gen', 'อีเมล', 'โปรเจก', 'ประเภท', 'จ', 'อ', 'พ', 'พฤ', 'ศ', 'ส', 'อา', 'เวลาเข้ารอบ 1', 'เวลาออกรอบ 1', 'เวลาเข้ารอบ 2', 'เวลาออกรอบ 2', 'หมายเหตุ']
 
 const admin = new Client()
@@ -355,7 +364,7 @@ describe('นำเข้า Excel', () => {
     ])
 
     const c = (await admin.json('POST', '/api/import/commit')).body
-    expect(c).toEqual({ applied: 3 })
+    expect(c).toMatchObject({ applied: 3 })
 
     const mew = (await admin.json('GET', '/api/employees')).body.find((e: { email: string }) => e.email === 'mew@gmail.com')
     expect(mew).toMatchObject({ nickname: 'มิว', gen: 'Gen 8', type: 'student' })
@@ -378,7 +387,7 @@ describe('นำเข้า Excel', () => {
     const p = (await admin.json('POST', '/api/import/preview', new FormPayload(file))).body
     expect(p.ok).toBe(true)
     expect(p.newEmployees).toEqual([{ nickname: 'ปอ (Gen 9)', email: null, projectName: 'LU-Phuket' }])
-    expect((await admin.json('POST', '/api/import/commit')).body).toEqual({ applied: 1 })
+    expect((await admin.json('POST', '/api/import/commit')).body).toMatchObject({ applied: 1 })
 
     const por = (await admin.json('GET', '/api/employees')).body.find((e: { nickname: string }) => e.nickname === 'ปอ')
     expect(por).toMatchObject({ gen: 'Gen 9', email: null, type: 'student' })
@@ -425,13 +434,93 @@ describe('นำเข้า Excel', () => {
     expect(r.problems[0].message).toContain('มากกว่าหนึ่งคน')
   })
 
-  it('ดาวน์โหลดไฟล์ตัวอย่างได้ และไฟล์ตัวอย่างผ่านการตรวจรูปแบบ', async () => {
+  it('สร้างโปรเจกต์ใหม่ผ่านชีตโปรเจก: แสดงใน preview และสร้างลงระบบจริงเมื่อ commit', async () => {
+    const file = await multiSheetXlsx([
+      {
+        name: 'ตาราง',
+        rows: [
+          HEAD,
+          ['บอส', 'Gen 9', 'boss@gmail.com', 'AI-Bot', 'นักศึกษา', '✓', '✓', '', '', '', '', '', '10:00', '19:00'],
+        ],
+      },
+      {
+        name: 'โปรเจก',
+        rows: [
+          ['ชื่อโปรเจก', 'เวลาเริ่มเริ่มต้น', 'เวลาเลิกเริ่มต้น', 'หมายเหตุ'],
+          ['AI-Bot', '10:00', '19:00', 'โปรเจกต์ใหม่'],
+        ],
+      },
+      {
+        name: 'วิธีกรอก',
+        rows: [['คู่มือ']],
+      },
+    ])
+
+    const p = (await admin.json('POST', '/api/import/preview', new FormPayload(file))).body
+    expect(p.ok).toBe(true)
+    expect(p.newProjects).toEqual([{ name: 'AI-Bot', memberCount: 1, defaultStart: '10:00', defaultEnd: '19:00' }])
+    expect(p.newEmployees).toEqual([{ nickname: 'บอส (Gen 9)', email: 'boss@gmail.com', projectName: 'AI-Bot' }])
+
+    const c = (await admin.json('POST', '/api/import/commit')).body
+    expect(c.createdProjects).toBe(1)
+    expect(c.applied).toBe(1)
+
+    // ตรวจสอบว่าโปรเจกต์ AI-Bot มีอยู่ในระบบจริง
+    const projects = (await admin.json('GET', '/api/projects')).body
+    const aibot = projects.find((x: { name: string }) => x.name === 'AI-Bot')
+    expect(aibot).toBeDefined()
+    expect(aibot.defaultStart).toBe('10:00')
+    expect(aibot.defaultEnd).toBe('19:00')
+
+    // ตรวจสอบว่าพนักงานบอสถูกผูกกับโปรเจกต์ AI-Bot
+    const boss = (await admin.json('GET', '/api/employees')).body.find((e: { email: string }) => e.email === 'boss@gmail.com')
+    expect(boss).toBeDefined()
+    const sch = (await admin.json('GET', `/api/employees/${boss.id}/schedule`)).body
+    expect(sch.assignments[0].projectName).toBe('AI-Bot')
+  })
+
+  it('ชื่อโปรเจกต์ในชีตตารางที่ไม่ได้ประกาศในชีตโปรเจกและไม่มีในระบบ -> แจ้ง error', async () => {
+    const file = await multiSheetXlsx([
+      {
+        name: 'ตาราง',
+        rows: [
+          HEAD,
+          ['มาร์ค', 'Gen 9', 'mark@gmail.com', 'Undeclared-Project', 'นักศึกษา', '✓', '', '', '', '', '', '', '09:30', '12:00'],
+        ],
+      },
+      {
+        name: 'โปรเจก',
+        rows: [
+          ['ชื่อโปรเจก', 'เวลาเริ่มเริ่มต้น', 'เวลาเลิกเริ่มต้น', 'หมายเหตุ'],
+          ['TurnPRO', '09:00', '18:00', ''],
+        ],
+      },
+    ])
+
+    const r = (await admin.json('POST', '/api/import/preview', new FormPayload(file))).body
+    expect(r.ok).toBe(false)
+    expect(r.problems).toHaveLength(1)
+    expect(r.problems[0].column).toBe('โปรเจก')
+    expect(r.problems[0].message).toContain('ไม่พบโปรเจก')
+    expect(r.problems[0].fix).toContain('ไปเพิ่มชื่อโปรเจก')
+  })
+
+  it('ดาวน์โหลดไฟล์ตัวอย่างได้ และไฟล์ตัวอย่างผ่านการตรวจรูปแบบพร้อมมีชีตโปรเจกต์และ dropdown', async () => {
     const r = await admin.get('/api/import/template')
     expect(r.statusCode).toBe(200)
     const { parseWorkbook } = await import('../src/services/import.js')
     const parsed = await parseWorkbook(r.rawPayload)
     expect(parsed.problems).toEqual([])
     expect(parsed.rows).toHaveLength(2)
+    expect(parsed.declaredProjects.length).toBeGreaterThanOrEqual(2)
+
+    // ตรวจสอบชีตในไฟล์ตัวอย่าง
+    const wb = new ExcelJS.Workbook()
+    await wb.xlsx.load(r.rawPayload)
+    expect(wb.worksheets.map((s) => s.name)).toEqual(['ตาราง', 'โปรเจก', 'วิธีกรอก'])
+    const ws = wb.getWorksheet('ตาราง')!
+    expect(ws.getCell('D2').dataValidation?.type).toBe('list')
+    expect(ws.getCell('D2').dataValidation?.formulae).toEqual(["='โปรเจก'!$A$2:$A$200"])
   })
 })
 

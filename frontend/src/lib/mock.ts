@@ -389,6 +389,7 @@ export const mockApi: Api = {
             { row: 15, column: 'จ–อา', message: 'ไม่ได้ติ๊กวันไหนเลย', fix: 'ติ๊กอย่างน้อยหนึ่งวันในคอลัมน์ จ ถึง อา' },
             { row: 18, column: 'อีเมล + โปรเจก', message: 'ซ้ำกับแถวที่ 17 (mew@example.com, LU-Phuket)', fix: 'รวมสองแถวเป็นแถวเดียว ถ้ามาสองรอบต่อวันให้ใช้ช่องรอบ 2' },
           ],
+          newProjects: [],
           newEmployees: [],
           newAssignments: [],
           changedShifts: [],
@@ -399,6 +400,9 @@ export const mockApi: Api = {
       {
         ok: true,
         problems: [],
+        newProjects: [
+          { name: 'Mobile App', memberCount: 1, defaultStart: '09:00', defaultEnd: '18:00' },
+        ],
         newEmployees: [
           { nickname: 'ปอ (Gen 9)', email: 'por@example.com', projectName: 'LU-Phuket' },
           { nickname: 'จูน (Gen 9)', email: null, projectName: 'Mobile App' },

@@ -98,6 +98,7 @@ export interface ImportProblem {
 export interface ImportPreview {
   ok: boolean
   problems: ImportProblem[]
+  newProjects: { name: string; memberCount: number; defaultStart?: string | null; defaultEnd?: string | null }[]
   newEmployees: { nickname: string; email: string | null; projectName: string }[]
   newAssignments: { nickname: string; projectName: string }[]
   changedShifts: { nickname: string; projectName: string; before: string; after: string }[]

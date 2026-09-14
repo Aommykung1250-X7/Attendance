@@ -101,6 +101,7 @@ export default function ImportExcel() {
             <h2 className="font-medium">กฎของไฟล์</h2>
             <ul className="mt-2 list-disc space-y-1.5 pl-5 text-text-dim">
               <li>หัวตารางอยู่แถวแรก หนึ่งแถว = หนึ่งคนต่อหนึ่งโปรเจก</li>
+              <li>ถ้ามีโปรเจกต์ใหม่ ให้เพิ่มชื่อในชีต "โปรเจก" ก่อน แล้วเลือกจาก Dropdown ในชีตตาราง</li>
               <li>ติ๊กวันในคอลัมน์ จ ถึง อา เวลาใช้รูปแบบ 09:30</li>
               <li>คนที่มาสองรอบใช้ช่องรอบ 2</li>
               <li>แถวในไฟล์จะแทนที่กะเดิมของคนนั้นในโปรเจกนั้นทั้งหมด</li>
@@ -170,7 +171,7 @@ function Problems({ p, name, onRetry }: { p: ImportPreview; name: string; onRetr
 }
 
 function Summary({ p, name, busy, onConfirm, onCancel }: { p: ImportPreview; name: string; busy: boolean; onConfirm: () => void; onCancel: () => void }) {
-  const nothing = p.newEmployees.length === 0 && p.newAssignments.length === 0 && p.changedShifts.length === 0
+  const nothing = (p.newProjects?.length ?? 0) === 0 && p.newEmployees.length === 0 && p.newAssignments.length === 0 && p.changedShifts.length === 0
   return (
     <div className="space-y-5">
       <Card className="p-5">
@@ -178,8 +179,9 @@ function Summary({ p, name, busy, onConfirm, onCancel }: { p: ImportPreview; nam
         <p className="mt-1 text-[15px] text-text-dim">
           {name} ผ่านการตรวจทุกแถว{p.unchangedCount ? ` · ${p.unchangedCount} แถวไม่มีอะไรเปลี่ยน` : ''}
         </p>
-        <div className="mt-5 grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-rule bg-rule text-center">
+        <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-px overflow-hidden rounded-lg border border-rule bg-rule text-center">
           {[
+            ['โปรเจกต์ใหม่', p.newProjects?.length ?? 0],
             ['คนใหม่', p.newEmployees.length],
             ['คนเดิมได้โปรเจกเพิ่ม', p.newAssignments.length],
             ['คนเดิมเวลาเปลี่ยน', p.changedShifts.length],
@@ -191,6 +193,20 @@ function Summary({ p, name, busy, onConfirm, onCancel }: { p: ImportPreview; nam
           ))}
         </div>
       </Card>
+
+      {p.newProjects && p.newProjects.length > 0 && (
+        <Section title={`จะสร้างโปรเจกต์ใหม่ ${p.newProjects.length} โปรเจกต์`} hint="ระบบจะสร้างโปรเจกต์เหล่านี้ให้อัตโนมัติเมื่อกดยืนยัน">
+          {p.newProjects.map((proj, i) => (
+            <li key={i} className="flex flex-wrap justify-between gap-x-6 px-5 py-3">
+              <span className="font-medium text-brand">{proj.name}</span>
+              <span className="text-sm text-text-dim">
+                {proj.memberCount > 0 ? `สมาชิกในไฟล์ ${proj.memberCount} คน` : 'ยังไม่มีสมาชิกในไฟล์นี้'}
+                {proj.defaultStart && proj.defaultEnd ? ` · เวลามาตรฐาน ${proj.defaultStart}–${proj.defaultEnd}` : ''}
+              </span>
+            </li>
+          ))}
+        </Section>
+      )}
 
       {p.newEmployees.length > 0 && (
         <Section title={`จะสร้างคนใหม่ ${p.newEmployees.length} คน`} hint="ตรวจอีเมลอีกครั้ง ต้องเป็นบัญชีที่ล็อกอิน Google ได้ คนที่ยังไม่มีอีเมลจะเช็กชื่อเองไม่ได้จนกว่าจะกรอกในหน้าพนักงาน">

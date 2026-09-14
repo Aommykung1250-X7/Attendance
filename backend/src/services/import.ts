@@ -172,19 +172,101 @@ function readGen(s: string): string | null {
 // ขั้นที่ 1: อ่านไฟล์และตรวจรูปแบบของแต่ละแถว (ไม่ต้องใช้ฐานข้อมูล)
 // ---------------------------------------------------------------------------
 
-export async function parseWorkbook(buf: Buffer): Promise<{ rows: ImportRow[]; problems: ImportProblem[] }> {
+export interface DeclaredProject {
+  row: number
+  name: string
+  defaultStart: string | null
+  defaultEnd: string | null
+}
+
+// ---------------------------------------------------------------------------
+// ขั้นที่ 1: อ่านไฟล์และตรวจรูปแบบของแต่ละแถว (ไม่ต้องใช้ฐานข้อมูล)
+// ---------------------------------------------------------------------------
+
+export async function parseWorkbook(buf: Buffer): Promise<{
+  rows: ImportRow[]
+  problems: ImportProblem[]
+  declaredProjects: DeclaredProject[]
+}> {
   const wb = new ExcelJS.Workbook()
   try {
     await wb.xlsx.load(buf as unknown as ArrayBuffer)
   } catch {
     throw badRequest('อ่านไฟล์ไม่ได้ ต้องเป็นไฟล์ Excel (.xlsx) ถ้าเป็น .xls หรือ .csv ให้เปิดแล้วบันทึกเป็น .xlsx ก่อน')
   }
-  const ws = wb.worksheets[0]
-  if (!ws) throw badRequest('ไฟล์นี้ไม่มีตาราง')
+  const wsSchedule = wb.worksheets.find((s) => ['ตาราง', 'schedule', 'employees', 'พนักงาน'].includes(norm(s.name))) ?? wb.worksheets[0]
+  if (!wsSchedule) throw badRequest('ไฟล์นี้ไม่มีตาราง')
 
-  // หัวตารางอยู่แถวแรกแถวเดียว
+  const wsProjects = wb.worksheets.find((s) => ['โปรเจก', 'โปรเจกต์', 'โปรเจค', 'projects', 'project'].includes(norm(s.name)))
+
+  const problems: ImportProblem[] = []
+  const declaredProjects: DeclaredProject[] = []
+
+  // 1. อ่านชีต 'โปรเจก' (ถ้ามี)
+  if (wsProjects) {
+    let nameCol = 1
+    let startCol = 2
+    let endCol = 3
+    const pHeaders = wsProjects.getRow(1)
+    pHeaders.eachCell({ includeEmpty: false }, (cell, c) => {
+      const h = norm(text(scalar(cell.value)))
+      if (['ชื่อโปรเจก', 'ชื่อโปรเจกต์', 'ชื่อโปรเจค', 'โปรเจก', 'โปรเจกต์', 'โปรเจค', 'name', 'project'].some((n) => norm(n) === h)) nameCol = c
+      else if (['เวลาเริ่มเริ่มต้น', 'เวลาเริ่ม', 'defaultstart', 'start'].some((n) => norm(n) === h)) startCol = c
+      else if (['เวลาเลิกเริ่มต้น', 'เวลาออกเริ่มต้น', 'เวลาเลิก', 'defaultend', 'end'].some((n) => norm(n) === h)) endCol = c
+    })
+
+    const seenProj = new Map<string, number>()
+    wsProjects.eachRow({ includeEmpty: false }, (r, rowNumber) => {
+      if (rowNumber === 1) return
+      const rawName = text(scalar(r.getCell(nameCol).value))
+      if (!rawName) return
+
+      const prevRow = seenProj.get(norm(rawName))
+      if (prevRow) {
+        problems.push({
+          row: rowNumber,
+          column: 'ชีตโปรเจก: ชื่อโปรเจก',
+          message: `ชื่อโปรเจก "${rawName}" ซ้ำกับแถวที่ ${prevRow}`,
+          fix: 'ลบแถวที่ซ้ำออก หรือเปลี่ยนชื่อโปรเจก',
+        })
+        return
+      }
+      seenProj.set(norm(rawName), rowNumber)
+
+      const rawStart = scalar(r.getCell(startCol).value)
+      const rawEnd = scalar(r.getCell(endCol).value)
+      const startTime = readTime(rawStart)
+      const endTime = readTime(rawEnd)
+
+      if (startTime && !startTime.ok) {
+        problems.push({
+          row: rowNumber,
+          column: 'ชีตโปรเจก: เวลาเริ่ม',
+          message: `เวลาเริ่ม "${startTime.raw}" ผิดรูปแบบ`,
+          fix: startTime.suggestion ? `แก้เป็น ${startTime.suggestion}` : 'ใช้รูปแบบ HH:MM เช่น 09:00',
+        })
+      }
+      if (endTime && !endTime.ok) {
+        problems.push({
+          row: rowNumber,
+          column: 'ชีตโปรเจก: เวลาเลิก',
+          message: `เวลาเลิก "${endTime.raw}" ผิดรูปแบบ`,
+          fix: endTime.suggestion ? `แก้เป็น ${endTime.suggestion}` : 'ใช้รูปแบบ HH:MM เช่น 18:00',
+        })
+      }
+
+      declaredProjects.push({
+        row: rowNumber,
+        name: rawName.trim(),
+        defaultStart: startTime?.ok ? startTime.value : null,
+        defaultEnd: endTime?.ok ? endTime.value : null,
+      })
+    })
+  }
+
+  // 2. อ่านชีต 'ตาราง' (หัวตารางอยู่แถวแรกแถวเดียว)
   const col = new Map<Field, number>()
-  ws.getRow(1).eachCell({ includeEmpty: false }, (cell, c) => {
+  wsSchedule.getRow(1).eachCell({ includeEmpty: false }, (cell, c) => {
     const h = norm(text(scalar(cell.value)))
     for (const [f, names] of Object.entries(ALIASES) as [Field, string[]][]) {
       if (!col.has(f) && names.some((n) => norm(n) === h)) col.set(f, c)
@@ -194,20 +276,23 @@ export async function parseWorkbook(buf: Buffer): Promise<{ rows: ImportRow[]; p
   if (missing.length) {
     return {
       rows: [],
-      problems: missing.map((f) => ({
-        row: 1,
-        column: COLUMN_LABEL[f],
-        message: `ไม่พบคอลัมน์ "${COLUMN_LABEL[f]}" ในแถวแรก`,
-        fix: 'ใช้ไฟล์ตัวอย่างจากปุ่ม "ดาวน์โหลดไฟล์ตัวอย่าง" หัวตารางต้องอยู่แถวแรกแถวเดียว',
-      })),
+      problems: [
+        ...problems,
+        ...missing.map((f) => ({
+          row: 1,
+          column: COLUMN_LABEL[f],
+          message: `ไม่พบคอลัมน์ "${COLUMN_LABEL[f]}" ในแถวแรก`,
+          fix: 'ใช้ไฟล์ตัวอย่างจากปุ่ม "ดาวน์โหลดไฟล์ตัวอย่าง" หัวตารางต้องอยู่แถวแรกแถวเดียว',
+        })),
+      ],
+      declaredProjects,
     }
   }
 
-  const problems: ImportProblem[] = []
   const rows: ImportRow[] = []
   const crossCheck: ImportRow[] = []
 
-  ws.eachRow({ includeEmpty: false }, (r, rowNumber) => {
+  wsSchedule.eachRow({ includeEmpty: false }, (r, rowNumber) => {
     if (rowNumber === 1) return
     const get = (f: Field): Scalar => (col.has(f) ? scalar(r.getCell(col.get(f)!).value) : null)
     // ข้ามแถวที่ว่างทั้งแถว (มักเป็นแถวที่เคยมีการจัดรูปแบบไว้)
@@ -226,7 +311,7 @@ export async function parseWorkbook(buf: Buffer): Promise<{ rows: ImportRow[]; p
     if (email && !EMAIL_RE.test(email)) add('email', `อีเมล "${email}" ผิดรูปแบบ`, 'แก้ให้อยู่ในรูป name@example.com')
 
     const projectName = text(get('project'))
-    if (!projectName) add('project', 'ช่องโปรเจกว่าง', 'กรอกชื่อโปรเจกให้ตรงกับที่มีในระบบ')
+    if (!projectName) add('project', 'ช่องโปรเจกว่าง', 'เลือกโปรเจกจาก Dropdown หรือเพิ่มชื่อโปรเจกในชีต "โปรเจก" ก่อน')
 
     const typeText = text(get('type'))
     const type = readType(typeText)
@@ -343,7 +428,7 @@ export async function parseWorkbook(buf: Buffer): Promise<{ rows: ImportRow[]; p
     problems.push({ row: 2, column: '-', message: 'ไฟล์นี้ไม่มีข้อมูล', fix: 'กรอกข้อมูลตั้งแต่แถวที่ 2 ลงไป' })
 
   problems.sort((a, b) => a.row - b.row)
-  return { rows, problems }
+  return { rows, problems, declaredProjects }
 }
 
 // ---------------------------------------------------------------------------
@@ -353,10 +438,11 @@ export async function parseWorkbook(buf: Buffer): Promise<{ rows: ImportRow[]; p
 interface Resolved {
   problems: ImportProblem[]
   employees: Map<string, EmployeeRow>
-  projects: Map<string, ProjectRow>
+  projects: Map<string, ProjectRow | { id: string; name: string; defaultStart: string; defaultEnd: string }>
+  newProjects: { name: string; defaultStart: string | null; defaultEnd: string | null }[]
 }
 
-async function resolveAgainstDb(tx: Tx, rows: ImportRow[]): Promise<Resolved> {
+async function resolveAgainstDb(tx: Tx, rows: ImportRow[], declaredProjects: DeclaredProject[] = []): Promise<Resolved> {
   const problems: ImportProblem[] = []
   // คนที่ถูกซ่อนก็ต้องเจอด้วย ไม่งั้นการนำเข้าซ้ำจะสร้างคนซ้อนขึ้นมาอีกคน
   const emails = [...new Set(rows.map((r) => r.email).filter((e): e is string => e !== null))]
@@ -382,18 +468,38 @@ async function resolveAgainstDb(tx: Tx, rows: ImportRow[]): Promise<Resolved> {
   }
 
   const allProjects = await tx.select().from(schema.projects)
-  const projects = new Map(allProjects.map((p) => [norm(p.name), p]))
+  const projects = new Map<string, ProjectRow | { id: string; name: string; defaultStart: string; defaultEnd: string }>(
+    allProjects.map((p) => [norm(p.name), p]),
+  )
   const known = allProjects.map((p) => p.name).slice(0, 12).join(', ')
+
+  // ตรวจจับโปรเจกต์ใหม่ที่ประกาศไว้ในชีตโปรเจก
+  const newProjects: { name: string; defaultStart: string | null; defaultEnd: string | null }[] = []
+  for (const dp of declaredProjects) {
+    const key = norm(dp.name)
+    if (!projects.has(key)) {
+      const virtual = {
+        id: `new:proj:${key}`,
+        name: dp.name,
+        defaultStart: dp.defaultStart ?? '09:00',
+        defaultEnd: dp.defaultEnd ?? '18:00',
+      }
+      projects.set(key, virtual)
+      newProjects.push({ name: dp.name, defaultStart: dp.defaultStart, defaultEnd: dp.defaultEnd })
+    }
+  }
 
   for (const r of rows) {
     if (!projects.has(norm(r.projectName)))
       problems.push({
         row: r.row,
         column: 'โปรเจก',
-        message: `ไม่พบโปรเจก "${r.projectName}" ในระบบ`,
-        fix: allProjects.length
-          ? `แก้ชื่อให้ตรงกับที่มี (${known}) หรือสร้างโปรเจกนี้ในหน้าโปรเจกก่อน`
-          : 'สร้างโปรเจกในหน้าโปรเจกก่อน แล้วอัปโหลดใหม่',
+        message: `ไม่พบโปรเจก "${r.projectName}" ในชีตโปรเจก หรือในระบบ`,
+        fix: declaredProjects.length > 0
+          ? `ไปเพิ่มชื่อโปรเจก "${r.projectName}" ในชีต "โปรเจก" ก่อน แล้วเลือกจาก Dropdown ในชีตตาราง`
+          : allProjects.length
+            ? `แก้ชื่อให้ตรงกับที่มี (${known}) หรือเพิ่มชื่อโปรเจกในชีต "โปรเจก"`
+            : 'เพิ่มชื่อโปรเจกในชีต "โปรเจก" แล้วอัปโหลดใหม่',
       })
     if (!r.email && ambiguous.has(nameKey(r))) {
       problems.push({
@@ -424,7 +530,7 @@ async function resolveAgainstDb(tx: Tx, rows: ImportRow[]): Promise<Resolved> {
       })
   }
   problems.sort((a, b) => a.row - b.row)
-  return { problems, employees, projects }
+  return { problems, employees, projects, newProjects }
 }
 
 function plan(rows: ImportRow[], resolved: Resolved, current: PlanShift[], idFor: (r: ImportRow) => string) {
@@ -439,11 +545,15 @@ function plan(rows: ImportRow[], resolved: Resolved, current: PlanShift[], idFor
   return { next, replacedPairs }
 }
 
-export async function previewImport(rows: ImportRow[], problems: ImportProblem[]): Promise<ImportPreview> {
-  const empty: ImportPreview = { ok: false, problems, newEmployees: [], newAssignments: [], changedShifts: [] }
+export async function previewImport(
+  rows: ImportRow[],
+  problems: ImportProblem[],
+  declaredProjects: DeclaredProject[] = [],
+): Promise<ImportPreview> {
+  const empty: ImportPreview = { ok: false, problems, newProjects: [], newEmployees: [], newAssignments: [], changedShifts: [] }
   if (problems.length) return empty
 
-  const resolved = await resolveAgainstDb(db, rows)
+  const resolved = await resolveAgainstDb(db, rows, declaredProjects)
   if (resolved.problems.length) return { ...empty, problems: resolved.problems }
 
   const idFor = (r: ImportRow) => resolved.employees.get(personKey(r))?.id ?? `new:${personKey(r)}`
@@ -494,9 +604,21 @@ export async function previewImport(rows: ImportRow[], problems: ImportProblem[]
       })
   }
 
+  const newProjectsList = resolved.newProjects.map((np) => {
+    const assignedRows = rows.filter((r) => norm(r.projectName) === norm(np.name))
+    const uniqueMembers = new Set(assignedRows.map((r) => personKey(r))).size
+    return {
+      name: np.name,
+      memberCount: uniqueMembers,
+      defaultStart: np.defaultStart,
+      defaultEnd: np.defaultEnd,
+    }
+  })
+
   return {
     ok: true,
     problems: [],
+    newProjects: newProjectsList,
     newEmployees: [...newEmployees.values()],
     newAssignments,
     changedShifts,
@@ -504,13 +626,28 @@ export async function previewImport(rows: ImportRow[], problems: ImportProblem[]
   }
 }
 
-export async function commitImport(adminEmail: string, rows: ImportRow[]) {
+export async function commitImport(adminEmail: string, rows: ImportRow[], declaredProjects: DeclaredProject[] = []) {
   return db.transaction(async (tx) => {
     // กันการนำเข้าสองไฟล์พร้อมกัน
     await tx.execute(sql`select pg_advisory_xact_lock(4801)`)
-    const resolved = await resolveAgainstDb(tx, rows)
+    const resolved = await resolveAgainstDb(tx, rows, declaredProjects)
     if (resolved.problems.length)
       throw conflict('ข้อมูลในระบบเปลี่ยนไประหว่างที่ดูหน้าสรุป กรุณาอัปโหลดไฟล์ใหม่อีกครั้ง', { problems: resolved.problems })
+
+    // สร้างโปรเจกต์ใหม่ก่อน (ถ้ามี)
+    const createdProjects: ProjectRow[] = []
+    for (const np of resolved.newProjects) {
+      const [p] = await tx
+        .insert(schema.projects)
+        .values({
+          name: np.name,
+          defaultStart: np.defaultStart ?? '09:00',
+          defaultEnd: np.defaultEnd ?? '18:00',
+        })
+        .returning()
+      resolved.projects.set(norm(np.name), p)
+      createdProjects.push(p)
+    }
 
     // สร้างคนใหม่ (หนึ่งอีเมลหนึ่งคน ใช้ข้อมูลจากแถวแรกที่เจอ)
     const created: EmployeeRow[] = []
@@ -534,12 +671,13 @@ export async function commitImport(adminEmail: string, rows: ImportRow[]) {
       action: 'import',
       after: {
         rows: rows.length,
+        createdProjects: createdProjects.map((p) => p.name),
         createdEmployees: created.map((e) => e.email ?? `${displayName(e)} (ยังไม่มีอีเมล)`),
         shiftsAdded: res.added,
         shiftsRemoved: res.removed,
       },
     })
-    return { applied: rows.length }
+    return { applied: rows.length, createdProjects: createdProjects.length }
   })
 }
 
@@ -547,8 +685,10 @@ export async function commitImport(adminEmail: string, rows: ImportRow[]) {
 // ไฟล์ตัวอย่าง
 // ---------------------------------------------------------------------------
 
-export async function templateWorkbook(): Promise<Buffer> {
+export async function templateWorkbook(txOrDb: Tx | typeof db = db): Promise<Buffer> {
   const wb = new ExcelJS.Workbook()
+
+  // 1. ชีต 'ตาราง'
   const ws = wb.addWorksheet('ตาราง')
   ws.addRow(TEMPLATE_HEADERS)
   ws.addRow(['ต้น', '', 'ton.example@gmail.com', 'TurnPRO', 'ประจำ', '✓', '✓', '✓', '✓', '✓', '', '', '09:00', '18:00', '', '', 'ตัวอย่าง ลบก่อนอัปโหลด'])
@@ -559,8 +699,10 @@ export async function templateWorkbook(): Promise<Buffer> {
   ws.views = [{ state: 'frozen', ySplit: 1 }]
   const widths = [12, 9, 30, 16, 12, 5, 5, 5, 5, 5, 5, 5, 13, 13, 13, 13, 30]
   widths.forEach((w, i) => (ws.getColumn(i + 1).width = w))
+
   // คอลัมน์เวลาเป็นข้อความ Excel จะได้ไม่แปลง 09:30 เป็นอย่างอื่น
   for (const c of [13, 14, 15, 16]) ws.getColumn(c).numFmt = '@'
+
   for (let r = 2; r <= 300; r++) {
     ws.getCell(`E${r}`).dataValidation = {
       type: 'list',
@@ -570,24 +712,64 @@ export async function templateWorkbook(): Promise<Buffer> {
       errorTitle: 'ประเภท',
       error: 'เลือก ประจำ หรือ นักศึกษา',
     }
+    ws.getCell(`D${r}`).dataValidation = {
+      type: 'list',
+      allowBlank: true,
+      formulae: ['=\'โปรเจก\'!$A$2:$A$200'],
+      showErrorMessage: true,
+      errorTitle: 'โปรเจก',
+      error: 'เลือกโปรเจกจากรายการ หรือไปเพิ่มชื่อในชีต "โปรเจก" ก่อน',
+    }
   }
 
+  // 2. ชีต 'โปรเจก'
+  const wsProjects = wb.addWorksheet('โปรเจก')
+  const PROJECT_HEADERS = ['ชื่อโปรเจก', 'เวลาเริ่มเริ่มต้น', 'เวลาเลิกเริ่มต้น', 'หมายเหตุ']
+  wsProjects.addRow(PROJECT_HEADERS)
+  const pHeader = wsProjects.getRow(1)
+  pHeader.font = { bold: true }
+  pHeader.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EEF6' } }
+  wsProjects.views = [{ state: 'frozen', ySplit: 1 }]
+  const pWidths = [20, 16, 16, 30]
+  pWidths.forEach((w, i) => (wsProjects.getColumn(i + 1).width = w))
+  wsProjects.getColumn(2).numFmt = '@'
+  wsProjects.getColumn(3).numFmt = '@'
+
+  let existingProjects: ProjectRow[] = []
+  try {
+    existingProjects = await txOrDb.select().from(schema.projects)
+  } catch {
+    // กรณี mock หรือไม่มี database
+  }
+
+  if (existingProjects.length > 0) {
+    for (const p of existingProjects) {
+      wsProjects.addRow([p.name, p.defaultStart, p.defaultEnd, ''])
+    }
+  } else {
+    wsProjects.addRow(['TurnPRO', '09:00', '18:00', 'ตัวอย่าง'])
+    wsProjects.addRow(['LU-Phuket', '09:30', '19:00', 'ตัวอย่าง'])
+  }
+
+  // 3. ชีต 'วิธีกรอก'
   const help = wb.addWorksheet('วิธีกรอก')
   ;[
-    'หนึ่งแถว = หนึ่งคนต่อหนึ่งโปรเจก ถ้าคนเดียวอยู่สองโปรเจกให้กรอกสองแถว',
-    'อีเมลต้องเป็นบัญชีที่ล็อกอิน Google ได้ (Gmail หรืออีเมลที่ผูกกับบัญชี Google) ไม่งั้นจะเช็กชื่อไม่ได้',
-    'เว้นช่องอีเมลว่างได้ถ้ายังไม่รู้ นำเข้าตารางไปก่อนแล้วค่อยมากรอกในหน้าพนักงาน แต่คนนั้นจะสแกน QR เช็กชื่อเองไม่ได้จนกว่าจะกรอก (แอดมินกดแทนได้)',
-    'แถวที่ไม่กรอกอีเมล ระบบจะจับคู่คนด้วย ชื่อเล่น + Gen ถ้าในระบบมีชื่อซ้ำกันหลายคนต้องกรอกอีเมลเพื่อบอกว่าเป็นคนไหน',
-    'Gen แยกออกจากชื่อ พนักงานประจำเว้นว่างได้',
-    'ประเภท: ประจำ หรือ นักศึกษา (พาร์ทไทม์ให้ใส่ นักศึกษา)',
-    'คอลัมน์ จ ถึง อา: ติ๊กวันที่มา ใส่อะไรก็ได้ เช่น ✓ หรือ x ช่องว่าง = ไม่มา',
-    'เวลาใช้รูปแบบ HH:MM เช่น 09:30 (ห้ามใช้จุด เช่น 9.30)',
-    'รอบ 2 สำหรับคนที่มาวันละสองรอบ ต้องเริ่มหลังรอบ 1 สิ้นสุด เว้นว่างได้',
-    'แถวในไฟล์จะเขียนทับกะเดิมของคู่ คน + โปรเจก นั้นทั้งหมด',
-    'คนที่ไม่มีในไฟล์จะไม่ถูกแตะต้อง การนำเข้าไม่ลบใคร',
-    'หมายเหตุ: ระบบไม่อ่าน เก็บไว้ให้คนอ่าน',
+    '1. ชีต "ตาราง" สำหรับกรอกตารางกะของพนักงาน โดยคอลัมน์ "โปรเจก" ให้เลือกจาก Dropdown',
+    '2. การเพิ่มโปรเจกต์ใหม่: ให้ไปพิมพ์ชื่อโปรเจกต์ในชีต "โปรเจก" ก่อน แล้วกลับมาเลือกจาก Dropdown ในชีต "ตาราง" (ระบบจะสร้างโปรเจกต์ใหม่อัตโนมัติเมื่ออัปโหลด)',
+    '3. หนึ่งแถว = หนึ่งคนต่อหนึ่งโปรเจก ถ้าคนเดียวอยู่สองโปรเจกให้กรอกสองแถว',
+    '4. อีเมลต้องเป็นบัญชีที่ล็อกอิน Google ได้ (Gmail หรืออีเมลที่ผูกกับบัญชี Google) ไม่งั้นจะเช็กชื่อไม่ได้',
+    '5. เว้นช่องอีเมลว่างได้ถ้ายังไม่รู้ นำเข้าตารางไปก่อนแล้วค่อยมากรอกในหน้าพนักงาน แต่คนนั้นจะสแกน QR เช็กชื่อเองไม่ได้จนกว่าจะกรอก (แอดมินกดแทนได้)',
+    '6. แถวที่ไม่กรอกอีเมล ระบบจะจับคู่คนด้วย ชื่อเล่น + Gen ถ้าในระบบมีชื่อซ้ำกันหลายคนต้องกรอกอีเมลเพื่อบอกว่าเป็นคนไหน',
+    '7. Gen แยกออกจากชื่อ พนักงานประจำเว้นว่างได้',
+    '8. ประเภท: ประจำ หรือ นักศึกษา (พาร์ทไทม์ให้ใส่ นักศึกษา)',
+    '9. คอลัมน์ จ ถึง อา: ติ๊กวันที่มา ใส่อะไรก็ได้ เช่น ✓ หรือ x ช่องว่าง = ไม่มา',
+    '10. เวลาใช้รูปแบบ HH:MM เช่น 09:30 (ห้ามใช้จุด เช่น 9.30)',
+    '11. รอบ 2 สำหรับคนที่มาวันละสองรอบ ต้องเริ่มหลังรอบ 1 สิ้นสุด เว้นว่างได้',
+    '12. แถวในไฟล์จะเขียนทับกะเดิมของคู่ คน + โปรเจก นั้นทั้งหมด',
+    '13. คนที่ไม่มีในไฟล์จะไม่ถูกแตะต้อง การนำเข้าไม่ลบใคร',
+    '14. หมายเหตุ: ระบบไม่อ่าน เก็บไว้ให้คนอ่าน',
   ].forEach((line) => help.addRow([line]))
-  help.getColumn(1).width = 110
+  help.getColumn(1).width = 120
 
   return Buffer.from(await wb.xlsx.writeBuffer())
 }
