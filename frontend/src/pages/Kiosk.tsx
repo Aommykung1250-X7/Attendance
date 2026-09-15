@@ -210,6 +210,7 @@ function Roster({ board, error, now }: { board: KioskBoard | null; error: string
                 <Item key={r.shiftId} row={r} dot={r.status === 'late' ? 'late' : 'ontime'} fresh={!!fresh}>
                   {r.status === 'late' && <span className="text-late">สาย</span>}
                   {r.earlyLeaveAt && <span className="text-text-dim">กลับ {hhmm(r.earlyLeaveAt)}</span>}
+                  {r.checkedOutAt && <span className="text-text-dim">ออก {hhmm(r.checkedOutAt)}</span>}
                   <span className="tnum">{hhmm(r.scannedAt)}</span>
                 </Item>
               )

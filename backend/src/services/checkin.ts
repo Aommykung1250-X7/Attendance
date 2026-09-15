@@ -40,6 +40,7 @@ export async function buildView(employee: EmployeeRow, scannedAt: Date): Promise
       endTime: r.shift.endTime,
       attended: !!r.attendance,
       earlyLeft: !!r.attendance?.earlyLeaveAt,
+      checkedOut: !!r.attendance?.checkedOutAt,
       override: r.override?.status ?? null,
     })),
     time,
@@ -55,6 +56,10 @@ export async function buildView(employee: EmployeeRow, scannedAt: Date): Promise
     case 'ready': {
       const r = find(sel.shiftId)
       return { view: { kind: 'ready', nickname, shift: r.row, scannedAt: time }, record: r, date }
+    }
+    case 'ready_checkout': {
+      const r = find(sel.shiftId)
+      return { view: { kind: 'ready_checkout', nickname, shift: r.row, scannedAt: time }, record: r, date }
     }
     case 'early_leave': {
       const r = find(sel.shiftId)
@@ -113,4 +118,26 @@ export async function confirmEarlyLeave(employee: EmployeeRow, scannedAt: Date):
   const { records } = await loadDay(current.date, { employeeId: employee.id })
   const r = records.find((x) => x.shift.id === shift.id)!
   return { view: { kind: 'early_leave_done', nickname: employee.nickname, shift: r.row }, acted: true }
+}
+
+/** กดยืนยันออกงาน บันทึกเวลาที่สแกน ไม่ใช่เวลาที่กดปุ่ม */
+export async function confirmCheckOut(employee: EmployeeRow, scannedAt: Date): Promise<{ view: CheckInView; acted: boolean }> {
+  const current = await buildView(employee, scannedAt)
+  if (current.view.kind !== 'ready_checkout' || !current.record) return { view: current.view, acted: false }
+  const shift = current.record.shift
+
+  await db
+    .update(schema.attendance)
+    .set({ checkedOutAt: scannedAt, checkedOutBy: 'self' })
+    .where(
+      and(
+        eq(schema.attendance.shiftId, shift.id),
+        eq(schema.attendance.date, current.date),
+        isNull(schema.attendance.checkedOutAt),
+      ),
+    )
+
+  const { records } = await loadDay(current.date, { employeeId: employee.id })
+  const r = records.find((x) => x.shift.id === shift.id)!
+  return { view: { kind: 'checkout_done', nickname: employee.nickname, shift: r.row }, acted: true }
 }

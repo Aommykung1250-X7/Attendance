@@ -198,6 +198,7 @@ function DayRow({ day, focus, open, onToggle }: { day: MonthlyReport['days'][num
             <span key={e.shiftId} className={cx('tnum text-sm', focus !== 'all' && !match(e, focus) && 'opacity-40')}>
               <span className="text-text-dim">{e.startTime}</span> {e.scannedAt ? `เข้า ${e.scannedAt.slice(0, 5)}` : '—'}
               {e.earlyLeaveAt && <span className="ml-1.5 text-late">กลับ {e.earlyLeaveAt.slice(0, 5)}</span>}
+              {e.checkedOutAt && <span className="ml-1.5 text-text-dim">ออก {e.checkedOutAt.slice(0, 5)}</span>}
             </span>
           ))}
         </span>
@@ -215,6 +216,7 @@ function DayRow({ day, focus, open, onToggle }: { day: MonthlyReport['days'][num
                 <th className="py-2 pr-3 font-medium">กะ</th>
                 <th className="py-2 pr-3 font-medium">โปรเจก</th>
                 <th className="py-2 pr-3 font-medium">เวลาเข้า</th>
+                <th className="py-2 pr-3 font-medium">เวลาออก</th>
                 <th className="py-2 pr-3 font-medium">กลับก่อน</th>
                 <th className="py-2 pr-3 font-medium">สถานะ</th>
                 <th className="py-2 font-medium">หมายเหตุ</th>
@@ -230,6 +232,10 @@ function DayRow({ day, focus, open, onToggle }: { day: MonthlyReport['days'][num
                   <td className="tnum py-2 pr-3">
                     {e.scannedAt ?? '—'}
                     {e.recordedBy && <span className="block text-[12px] text-text-dim">{e.recordedBy === 'self' ? 'สแกนเอง' : 'แอดมินกดแทน'}</span>}
+                  </td>
+                  <td className="tnum py-2 pr-3">
+                    {e.checkedOutAt ?? '—'}
+                    {e.checkedOutBy && <span className="block text-[12px] text-text-dim">{e.checkedOutBy === 'self' ? 'สแกนเอง' : 'แอดมินกดแทน'}</span>}
                   </td>
                   <td className="tnum py-2 pr-3">{e.earlyLeaveAt ?? '—'}</td>
                   <td className="py-2 pr-3">

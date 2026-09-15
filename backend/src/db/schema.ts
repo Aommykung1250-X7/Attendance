@@ -98,10 +98,13 @@ export const attendance = pgTable(
     /** เวลาที่สแกน QR ไม่ใช่เวลาที่ล็อกอินเสร็จ */
     scannedAt: timestamp('scanned_at', { withTimezone: true, mode: 'date' }).notNull(),
     earlyLeaveAt: timestamp('early_leave_at', { withTimezone: true, mode: 'date' }),
+    checkedOutAt: timestamp('checked_out_at', { withTimezone: true, mode: 'date' }),
     /** 'self' หรืออีเมลของแอดมินที่กดแทน */
     recordedBy: text('recorded_by').notNull(),
     /** 'self' หรืออีเมลของแอดมินที่กดแจ้งกลับก่อนแทน */
     earlyLeaveBy: text('early_leave_by'),
+    /** 'self' หรืออีเมลของแอดมินที่กดออกงานแทน */
+    checkedOutBy: text('checked_out_by'),
     createdAt: createdAt(),
   },
   (t) => [

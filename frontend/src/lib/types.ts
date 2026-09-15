@@ -53,8 +53,10 @@ export interface ShiftInstance {
   endTime: string
   scannedAt: string | null // 'HH:MM:SS'
   earlyLeaveAt: string | null
+  checkedOutAt: string | null
   status: ShiftStatus
   recordedBy: 'self' | 'admin' | null
+  checkedOutBy: 'self' | 'admin' | null
   adminNote: string | null
 }
 
@@ -77,8 +79,10 @@ export type CheckInView =
   | { kind: 'all_done'; nickname: string }
   | { kind: 'too_early'; nickname: string; previousEndTime: string }
   | { kind: 'ready'; nickname: string; shift: ShiftInstance; scannedAt: string }
+  | { kind: 'ready_checkout'; nickname: string; shift: ShiftInstance; scannedAt: string }
   | { kind: 'early_leave'; nickname: string; shift: ShiftInstance; minutesRemaining: number }
   | { kind: 'done'; nickname: string; shift: ShiftInstance; status: ShiftStatus }
+  | { kind: 'checkout_done'; nickname: string; shift: ShiftInstance }
   | { kind: 'early_leave_done'; nickname: string; shift: ShiftInstance }
 
 export interface MonthlyReport {
@@ -140,6 +144,8 @@ export type OverrideStatus = 'leave' | 'present' | 'late' | 'absent'
 export type AdminAction =
   | { action: 'checkin'; time: string; note?: string } // กดเช็กชื่อแทน เวลา 'HH:MM'
   | { action: 'undo_checkin'; note?: string } // ยกเลิกการเช็กชื่อที่แอดมินกดแทน (ของที่พนักงานสแกนเองลบไม่ได้)
+  | { action: 'checkout'; time: string; note?: string } // กดออกงานแทน เวลา 'HH:MM'
+  | { action: 'clear_checkout'; note?: string } // ล้างเวลาออกงาน
   | { action: 'early_leave'; time: string; note?: string } // กดแจ้งกลับก่อนแทน
   | { action: 'clear_early_leave'; note?: string }
   | { action: 'set_status'; status: OverrideStatus; note?: string } // ลา / แก้สถานะย้อนหลัง

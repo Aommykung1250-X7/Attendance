@@ -27,6 +27,7 @@ const snap = (r: InstanceRecord): SnapState => ({
   status: r.row.status,
   scannedAt: r.row.scannedAt,
   earlyLeaveAt: r.row.earlyLeaveAt,
+  checkedOutAt: r.row.checkedOutAt ?? null,
 })
 
 const OVERRIDES: OverrideStatus[] = ['leave', 'present', 'late', 'absent']
@@ -84,6 +85,22 @@ export async function adminAction(adminEmail: string, shiftId: string, date: str
         if (rec.attendance.recordedBy === 'self')
           throw badRequest('การเช็กชื่อนี้พนักงานสแกนเอง ลบไม่ได้ ถ้าต้องการเปลี่ยนให้ใช้แก้สถานะ')
         await tx.delete(schema.attendance).where(whereAtt)
+        break
+      }
+      case 'checkout': {
+        if (!isHHMM(act.time)) throw badRequest('เวลาต้องอยู่ในรูป HH:MM')
+        if (!rec.attendance) throw badRequest('ต้องเช็กชื่อเข้าก่อน จึงจะบันทึกเวลาออกได้')
+        if (rec.attendance.earlyLeaveAt) throw badRequest('กะนี้แจ้งกลับก่อนเวลาไว้แล้ว')
+        const at = zoned(date, act.time)
+        if (at.getTime() < rec.attendance.scannedAt.getTime())
+          throw badRequest(`เวลาออกต้องอยู่หลังเวลาเข้า (${clockOf(rec.attendance.scannedAt).slice(0, 5)})`)
+        await tx.update(schema.attendance).set({ checkedOutAt: at, checkedOutBy: adminEmail }).where(whereAtt)
+        extra.time = act.time
+        break
+      }
+      case 'clear_checkout': {
+        if (!rec.attendance?.checkedOutAt) throw badRequest('กะนี้ยังไม่ได้บันทึกเวลาออกงาน')
+        await tx.update(schema.attendance).set({ checkedOutAt: null, checkedOutBy: null }).where(whereAtt)
         break
       }
       case 'early_leave': {

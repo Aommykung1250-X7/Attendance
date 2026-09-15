@@ -71,6 +71,7 @@ const realApi = {
   checkInView: (token: string) => request<CheckInView>('GET', `/checkin?token=${q(token)}`, undefined, { redirectOn401: true }),
   confirmCheckIn: (token: string) => request<CheckInView>('POST', '/checkin', { token }, { redirectOn401: true }),
   confirmEarlyLeave: (token: string) => request<CheckInView>('POST', '/checkin/early-leave', { token }, { redirectOn401: true }),
+  confirmCheckOut: (token: string) => request<CheckInView>('POST', '/checkin/checkout', { token }, { redirectOn401: true }),
 
   // ---- ผู้ใช้ ----
   me: () => get<Me>('/me'),

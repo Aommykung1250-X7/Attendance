@@ -201,6 +201,7 @@ function Row({ row: r, onOpen }: { row: DayLogRow; onOpen: () => void }) {
             <span className="text-text-dim">—</span>
           )}
           {r.earlyLeaveAt && <span className="ml-2 text-[12px] text-late">กลับ {r.earlyLeaveAt.slice(0, 5)}</span>}
+          {r.checkedOutAt && <span className="ml-2 text-[12px] text-text-dim">ออก {r.checkedOutAt.slice(0, 5)}</span>}
         </span>
         <span className="row-span-2 flex flex-col items-end gap-1 sm:row-span-1">
           <StatusPill status={r.status} />
@@ -238,6 +239,7 @@ function ActionDialog({
   // ค่าเริ่มต้นคือเวลาปัจจุบัน (วันนี้) หรือเวลาเริ่มกะ (วันที่ผ่านมา) แอดมินแก้เป็นเวลาที่มาถึงจริงได้
   const [checkinTime, setCheckinTime] = useState(isToday ? nowHHMM() : row.startTime)
   const [leaveTime, setLeaveTime] = useState(isToday ? nowHHMM() : row.endTime)
+  const [checkoutTime, setCheckoutTime] = useState(isToday ? nowHHMM() : row.endTime)
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -285,6 +287,12 @@ function ActionDialog({
             กลับก่อน <span className="tnum font-medium">{row.earlyLeaveAt}</span>
           </span>
         )}
+        {row.checkedOutAt && (
+          <span className="text-text-dim">
+            ออก <span className="tnum font-medium">{row.checkedOutAt}</span>
+            {row.checkedOutBy === 'admin' && <span className="ml-1 text-text-dim">(แอดมินกดแทน)</span>}
+          </span>
+        )}
         {row.overridden && <span className="text-text-dim">สถานะถูกแก้โดยแอดมิน{row.adminNote ? `: ${row.adminNote}` : ''}</span>}
       </div>
 
@@ -320,6 +328,15 @@ function ActionDialog({
           </ActionLine>
         )}
 
+        {arrived && !row.checkedOutAt && !row.earlyLeaveAt && (
+          <ActionLine label="บันทึกเวลาออกแทน" hint="สำหรับคนที่ลืมสแกนหรือแบตหมดตอนเลิกงาน">
+            <Input type="time" value={checkoutTime} onChange={(e) => setCheckoutTime(e.target.value)} className="w-32" />
+            <Button disabled={busy || !checkoutTime} onClick={() => act({ action: 'checkout', time: checkoutTime }, `บันทึกว่า ${name} ออกเวลา ${checkoutTime}`)}>
+              บันทึกออกงาน
+            </Button>
+          </ActionLine>
+        )}
+
         <ActionLine label="แก้สถานะเป็น" hint={date < todayISO() ? 'การแก้ย้อนหลังจะเก็บค่าเดิมไว้ในประวัติ' : 'ใช้ตอนคนโทรมาลา หรือแก้สถานะให้ถูกต้อง'}>
           <div className="flex flex-wrap gap-1.5">
             {STATUS_CHOICES.map((c) => (
@@ -337,7 +354,7 @@ function ActionDialog({
           </div>
         </ActionLine>
 
-        {(row.overridden || row.earlyLeaveAt || row.recordedBy === 'admin') && (
+        {(row.overridden || row.earlyLeaveAt || row.checkedOutAt || row.recordedBy === 'admin') && (
           <div className="flex flex-wrap gap-2 border-t border-rule pt-4">
             {row.overridden && (
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => act({ action: 'clear_status' }, `ล้างสถานะที่แก้ของ ${name}`)}>
@@ -347,6 +364,11 @@ function ActionDialog({
             {row.earlyLeaveAt && (
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => act({ action: 'clear_early_leave' }, `ล้างการกลับก่อนของ ${name}`)}>
                 ล้างการแจ้งกลับก่อน
+              </Button>
+            )}
+            {row.checkedOutAt && (
+              <Button size="sm" variant="ghost" disabled={busy} onClick={() => act({ action: 'clear_checkout' }, `ล้างเวลาออกงานของ ${name}`)}>
+                ล้างเวลาออกงาน
               </Button>
             )}
             {row.recordedBy === 'admin' && (

@@ -74,7 +74,9 @@ const settings = { displayKey: 'demo', displayUrl: `${location.origin}/display/d
 interface State {
   scannedAt: string | null
   earlyLeaveAt: string | null
+  checkedOutAt: string | null
   recordedBy: 'self' | 'admin' | null
+  checkedOutBy?: 'self' | 'admin' | null
   override: ShiftStatus | null
   note: string | null
   history: AuditEntry[]
@@ -97,7 +99,7 @@ function stateFor(shift: Shift, date: string): State {
   const nowMin = minutesOf(`${now.hh}:${now.mm}`)
   const start = minutesOf(shift.startTime)
   const h = hash(key) % 100
-  let s: State = { scannedAt: null, earlyLeaveAt: null, recordedBy: null, override: null, note: null, history: [] }
+  let s: State = { scannedAt: null, earlyLeaveAt: null, checkedOutAt: null, recordedBy: null, override: null, note: null, history: [] }
   const pastOrStarted = date < today || (date === today && nowMin > start - 20)
   if (pastOrStarted && h < 88) {
     const offset = h < 70 ? -(h % 25) - 1 : (h % 14) + 1
@@ -145,8 +147,10 @@ function rowsFor(date: string, employeeId?: string): DayLogRow[] {
         endTime: s.endTime,
         scannedAt: st.scannedAt,
         earlyLeaveAt: st.earlyLeaveAt,
+        checkedOutAt: st.checkedOutAt,
         status: statusOf(s, date, st),
         recordedBy: st.recordedBy,
+        checkedOutBy: st.checkedOutBy ?? null,
         adminNote: st.override ? st.note : null,
         overridden: !!st.override,
         historyCount: st.history.length,
@@ -179,6 +183,8 @@ function demoView(n: number): CheckInView {
     { kind: 'all_done', nickname: 'ต้น' },
     { kind: 'not_registered', email: 'someone.else@gmail.com' },
     { kind: 'expired' },
+    { kind: 'ready_checkout', nickname: 'ต้น', shift: s, scannedAt: '18:00:01' },
+    { kind: 'checkout_done', nickname: 'ต้น', shift: { ...s, checkedOutAt: '18:00:01' } },
   ]
   return views[n] ?? views[0]
 }
@@ -234,6 +240,7 @@ export const mockApi: Api = {
   checkInView: async () => wait(demoView(demoParam()), 400),
   confirmCheckIn: async () => wait(demoView(1), 500),
   confirmEarlyLeave: async () => wait(demoView(4), 500),
+  confirmCheckOut: async () => wait(demoView(11), 500),
 
   me: async () => wait({ email: 'admin@example.com', name: 'แอดมิน (จำลอง)', isAdmin: true, employee: null }),
   logout: async () => wait({ ok: true as const }),
@@ -256,6 +263,8 @@ export const mockApi: Api = {
     const label: Record<AdminAction['action'], string> = {
       checkin: 'เช็กชื่อแทน',
       undo_checkin: 'ยกเลิกการเช็กชื่อที่กดแทน',
+      checkout: 'บันทึกเวลาออกแทน',
+      clear_checkout: 'ล้างเวลาออกงาน',
       early_leave: 'แจ้งกลับก่อนแทน',
       clear_early_leave: 'ล้างการแจ้งกลับก่อนเวลา',
       set_status: 'แก้สถานะ',
@@ -266,6 +275,8 @@ export const mockApi: Api = {
       if (st.recordedBy === 'self') throw new ApiError(400, 'การเช็กชื่อนี้พนักงานสแกนเอง ลบไม่ได้')
       Object.assign(st, { scannedAt: null, recordedBy: null })
     }
+    if (a.action === 'checkout') Object.assign(st, { checkedOutAt: `${a.time}:00`, checkedOutBy: 'admin' })
+    if (a.action === 'clear_checkout') Object.assign(st, { checkedOutAt: null, checkedOutBy: null })
     if (a.action === 'early_leave') st.earlyLeaveAt = `${a.time}:00`
     if (a.action === 'clear_early_leave') st.earlyLeaveAt = null
     if (a.action === 'set_status') Object.assign(st, { override: a.status === 'present' ? 'ontime' : a.status, note: a.note || null })

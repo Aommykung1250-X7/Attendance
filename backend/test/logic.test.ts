@@ -77,18 +77,54 @@ describe('การเลือกกะ (spec หัวข้อ 8)', () => {
     const r = selectShift([{ ...morning, attended: true, earlyLeft: true }, evening], '10:00:00')
     expect(r).toEqual({ kind: 'too_early', previousEndTime: '12:00' })
   })
-  it('กลับมารอบเย็นหลังกะเช้าจบ → เช็กเข้ากะเย็นได้ ไม่ใช่เข้าใจผิดว่ากำลังกลับบ้าน', () =>
-    expect(selectShift([{ ...morning, attended: true }, evening], '16:50:00')).toEqual({ kind: 'ready', shiftId: 'e' }))
+  it('กลับมารอบเย็นหลังกะเช้าเช็กออกแล้ว → เช็กเข้ากะเย็นได้', () => {
+    expect(selectShift([{ ...morning, attended: true, checkedOut: true }, evening], '16:50:00')).toEqual({
+      kind: 'ready',
+      shiftId: 'e',
+    })
+  })
   it('ขาดกะเช้า มาตอนเย็น → ข้ามกะเช้าที่จบแล้ว ไปเช็กกะเย็น', () =>
     expect(selectShift([morning, evening], '16:55:00')).toEqual({ kind: 'ready', shiftId: 'e' }))
   it('ทุกกะจัดการแล้ว → all_done', () =>
-    expect(selectShift([{ ...morning, attended: true }, { ...evening, attended: true, earlyLeft: true }], '19:00:00')).toEqual({
+    expect(
+      selectShift(
+        [
+          { ...morning, attended: true, checkedOut: true },
+          { ...evening, attended: true, earlyLeft: true },
+        ],
+        '19:00:00',
+      ),
+    ).toEqual({
       kind: 'all_done',
     }))
   it('แอดมินกดลาไว้ → ไม่ต้องเช็กกะนั้น', () =>
     expect(selectShift([{ ...morning, override: 'leave' }], '09:00:00')).toEqual({ kind: 'all_done' }))
-  it('หลังเวลาสิ้นสุดของกะที่เช็กเข้าแล้ว ไม่ขึ้นหน้าแจ้งกลับก่อน', () =>
-    expect(selectShift([{ ...morning, attended: true }], '12:00:00')).toEqual({ kind: 'all_done' }))
+
+  const workShift = s('w', '09:00', '18:00', { attended: true })
+  it('สแกนตอน 17:59:59 (ก่อน 18:00) → หน้าขอออกก่อนเวลา (early_leave)', () => {
+    expect(selectShift([workShift], '17:59:59')).toEqual({
+      kind: 'early_leave',
+      shiftId: 'w',
+      minutesRemaining: 1,
+    })
+  })
+  it('สแกนตอน 18:00:00 (ตรงเวลาออก) → หน้า check-out ออกงาน (ready_checkout)', () => {
+    expect(selectShift([workShift], '18:00:00')).toEqual({
+      kind: 'ready_checkout',
+      shiftId: 'w',
+    })
+  })
+  it('สแกนตอน 18:00:01 (หลังเวลาออก) → หน้า check-out ออกงาน (ready_checkout)', () => {
+    expect(selectShift([workShift], '18:00:01')).toEqual({
+      kind: 'ready_checkout',
+      shiftId: 'w',
+    })
+  })
+  it('เช็กชื่อออกงานแล้ว สแกนอีกครั้ง → all_done', () => {
+    expect(selectShift([{ ...workShift, checkedOut: true }], '18:05:00')).toEqual({
+      kind: 'all_done',
+    })
+  })
 })
 
 describe('QR token', () => {

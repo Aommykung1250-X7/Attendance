@@ -136,6 +136,33 @@ function Body({
         </>
       )
 
+    case 'ready_checkout':
+      return (
+        <>
+          <Greeting nickname={view.nickname} />
+          <p className="display mt-4 text-3xl leading-snug font-semibold">บันทึกเวลาออกงาน</p>
+          <ShiftFacts
+            project={view.shift.projectName}
+            start={view.shift.startTime}
+            end={view.shift.endTime}
+            scannedAt={view.scannedAt}
+          />
+          <Actions>
+            <Button
+              variant="primary"
+              className="w-full text-base"
+              disabled={busy}
+              onClick={() => run(() => api.confirmCheckOut(token))}
+            >
+              {busy ? 'กำลังบันทึก' : 'เช็กชื่อออกงาน'}
+            </Button>
+            <p className="mt-3 text-center text-[13px] text-text-dim">
+              ระบบจะบันทึกเวลา {view.scannedAt} ซึ่งเป็นเวลาที่คุณสแกน
+            </p>
+          </Actions>
+        </>
+      )
+
     case 'done': {
       const late = view.status === 'late'
       return (
@@ -152,6 +179,24 @@ function Body({
         </div>
       )
     }
+
+    case 'checkout_done':
+      return (
+        <div className="animate-stamp">
+          <Greeting nickname={view.nickname} />
+          <p className="display mt-5 text-4xl leading-tight font-semibold text-ontime">บันทึกเวลาออกงานแล้ว</p>
+          <p className="tnum mt-2 text-lg text-text-dim">
+            บันทึกเวลา {view.shift.checkedOutAt ?? view.shift.endTime}
+          </p>
+          <ShiftFacts
+            project={view.shift.projectName}
+            start={view.shift.startTime}
+            end={view.shift.endTime}
+            scannedAt={view.shift.scannedAt ?? undefined}
+          />
+          <p className="mt-8 text-[15px] text-text-dim">ปิดหน้านี้ได้เลย</p>
+        </div>
+      )
 
     case 'early_leave': {
       const h = Math.floor(view.minutesRemaining / 60)
