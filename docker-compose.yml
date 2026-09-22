@@ -37,6 +37,9 @@ services:
       ADMIN_EMAILS: ${ADMIN_EMAILS:?ต้องตั้ง ADMIN_EMAILS}
       QR_TOKEN_TTL_SECONDS: ${QR_TOKEN_TTL_SECONDS:-30}
       COOKIE_SECURE: 'true'
+    volumes:
+      # เก็บรูปหลักฐานและใบรับรองข้ามการ rebuild container
+      - uploads-data:/app/uploads
     ports:
       # เปิดไว้ดู health เท่านั้น ใช้งานจริงผ่าน frontend
       - '127.0.0.1:${BACKEND_PORT:-4802}:4802'
@@ -51,3 +54,4 @@ services:
 
 volumes:
   db-data:
+  uploads-data:

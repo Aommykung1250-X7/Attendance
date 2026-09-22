@@ -5,6 +5,9 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --prod --frozen-lockfile
 COPY . .
+# backend รันด้วย user node จึงต้องเตรียมโฟลเดอร์ runtime ให้เขียนได้ก่อนลดสิทธิ์
+# ownership นี้จะถูกนำไปใช้ตอน Docker สร้าง named volume ครั้งแรกด้วย
+RUN mkdir -p /app/uploads && chown -R node:node /app/uploads
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=4802 \
