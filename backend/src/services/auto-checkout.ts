@@ -10,7 +10,7 @@ export async function reconcileAutoCheckouts(now = new Date()): Promise<number> 
     .select({ attendance: schema.attendance, endTime: schema.shifts.endTime })
     .from(schema.attendance)
     .innerJoin(schema.shifts, eq(schema.attendance.shiftId, schema.shifts.id))
-    .where(isNull(schema.attendance.checkedOutAt))
+    .where(and(isNull(schema.attendance.checkedOutAt), isNull(schema.attendance.earlyLeaveAt)))
   let updated = 0
   for (const { attendance, endTime } of rows) {
     const scheduledEnd = zoned(attendance.date, endTime)
