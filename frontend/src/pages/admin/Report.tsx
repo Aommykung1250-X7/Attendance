@@ -9,12 +9,13 @@ import type { Employee, MonthlyReport, ShiftInstance } from '../../lib/types'
 import { StatusPill } from '../../components/StatusPill'
 import { Button, Card, Checkbox, Empty, ErrorNote, Field, Loading, PageHeader, Select, cx } from '../../components/ui'
 
-type Focus = 'all' | 'late' | 'leave' | 'absent' | 'earlyLeave' | 'present'
+type Focus = 'all' | 'late' | 'leave' | 'absent' | 'earlyLeave' | 'present' | 'offsite'
 
 const match = (e: ShiftInstance, f: Focus) =>
   f === 'all' ||
-  (f === 'present' && (e.status === 'ontime' || e.status === 'late')) ||
+  (f === 'present' && (e.status === 'ontime' || e.status === 'late' || e.status === 'offsite')) ||
   (f === 'earlyLeave' && !!e.earlyLeaveAt) ||
+  (f === 'leave' && !!e.leavePortion) ||
   e.status === f
 
 export default function Report() {
@@ -110,13 +111,17 @@ export default function Report() {
             <span className="text-[15px] text-text-dim">{monthLabel(report.month)}</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-rule bg-rule sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-rule bg-rule sm:grid-cols-3 lg:grid-cols-6">
             <Total label="มาทำงาน" focus="present" current={focus} setFocus={setFocus}>
               {report.totals.present}
               <span className="text-lg font-medium text-text-dim"> / {report.totals.workdays} วัน</span>
             </Total>
+            <Total label="นอกสถานที่" unit="ครั้ง" tone="text-purple-600" focus="offsite" current={focus} setFocus={setFocus} n={report.totals.offsite ?? 0} />
             <Total label="สาย" unit="ครั้ง" tone="text-late" focus="late" current={focus} setFocus={setFocus} n={report.totals.late} />
-            <Total label="ลา" unit="ครั้ง" tone="text-leave" focus="leave" current={focus} setFocus={setFocus} n={report.totals.leave} />
+            <Total label="ลา" tone="text-leave" focus="leave" current={focus} setFocus={setFocus}>
+              {report.totals.leaveFullDays ?? report.totals.leave}
+              <span className="ml-1 text-xs font-medium text-text-dim">เต็ม · เช้า {report.totals.leaveMornings ?? 0} · บ่าย {report.totals.leaveAfternoons ?? 0}</span>
+            </Total>
             <Total label="ขาด" unit="ครั้ง" tone="text-absent" focus="absent" current={focus} setFocus={setFocus} n={report.totals.absent} />
             <Total label="กลับก่อนเวลา" unit="ครั้ง" tone="text-late" focus="earlyLeave" current={focus} setFocus={setFocus} n={report.totals.earlyLeave} />
           </div>
@@ -147,7 +152,7 @@ export default function Report() {
   )
 }
 
-const FOCUS_LABEL: Record<Focus, string> = { all: '', present: 'มา', late: 'สาย', leave: 'ลา', absent: 'ขาด', earlyLeave: 'กลับก่อนเวลา' }
+const FOCUS_LABEL: Record<Focus, string> = { all: '', present: 'มา', offsite: 'นอกสถานที่', late: 'สาย', leave: 'ลา', absent: 'ขาด', earlyLeave: 'กลับก่อนเวลา' }
 
 function Total({
   label,

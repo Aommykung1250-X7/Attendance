@@ -17,6 +17,9 @@ import type {
   MonthlyReport,
   Project,
   Shift,
+  AppSettings,
+  LeaveRequest,
+  OffsiteRequest,
   ShiftEntry,
   ShiftStatus,
 } from './types'
@@ -69,14 +72,49 @@ setShifts('e8', 'p3', wk([1, 3, 5, 6, 7], '13:00', '17:00'))
 setShifts('e9', 'p2', wk([2, 4, 6, 7], '09:30', '12:00'))
 
 const holidays: Holiday[] = [{ date: '2026-10-13', name: 'วันคล้ายวันสวรรคต ร.9' }]
-const settings = { displayKey: 'demo', displayUrl: `${location.origin}/display/demo`, qrTokenTtl: 30 }
+const settings: AppSettings = {
+  displayKey: 'demo',
+  displayUrl: `${location.origin}/display/demo`,
+  qrTokenTtl: 30,
+  lineOaUrl: 'https://line.me',
+  lateGraceMinutes: 0,
+  officeLatitude: 18.800523577253724,
+  officeLongitude: 98.95073601100776,
+  checkinRadiusMeters: 200,
+  maxLocationAccuracyMeters: 100,
+}
+
+const mockOffsiteRequests: OffsiteRequest[] = [
+  {
+    kind: 'offsite',
+    id: 'off-1',
+    employeeId: 'e1',
+    shiftId: 's1',
+    date: todayISO(),
+    taskDescription: 'ออกไปพบลูกค้าที่สุขุมวิท และติดตั้งระบบทดสอบ',
+    photoPath: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=600&auto=format&fit=crop&q=80',
+    latitude: '13.736717',
+    longitude: '100.561276',
+    locationName: 'สุขุมวิท ซอย 23',
+    status: 'pending',
+    reviewedBy: null,
+    reviewedAt: null,
+    rejectReason: null,
+    createdAt: new Date(Date.now() - 3600_000).toISOString(),
+    nickname: 'ต้น',
+    gen: null,
+    projectName: 'TurnPRO',
+    startTime: '09:00',
+    endTime: '18:00',
+  },
+]
 
 interface State {
   scannedAt: string | null
   earlyLeaveAt: string | null
   checkedOutAt: string | null
   recordedBy: 'self' | 'admin' | null
-  checkedOutBy?: 'self' | 'admin' | null
+  checkedOutBy?: 'self' | 'admin' | 'system' | null
   override: ShiftStatus | null
   note: string | null
   history: AuditEntry[]
@@ -133,7 +171,7 @@ function rowsFor(date: string, employeeId?: string): DayLogRow[] {
   const wd = weekdayOf(date)
   return shifts
     .filter((s) => s.weekday === wd && (!employeeId || s.employeeId === employeeId))
-    .map((s) => {
+    .map<DayLogRow | null>((s) => {
       const e = employees.find((x) => x.id === s.employeeId)!
       if (!e.isActive) return null
       const st = stateFor(s, date)
@@ -151,10 +189,11 @@ function rowsFor(date: string, employeeId?: string): DayLogRow[] {
         status: statusOf(s, date, st),
         recordedBy: st.recordedBy,
         checkedOutBy: st.checkedOutBy ?? null,
+        leavePortion: null,
         adminNote: st.override ? st.note : null,
         overridden: !!st.override,
         historyCount: st.history.length,
-      } satisfies DayLogRow
+      }
     })
     .filter((x): x is DayLogRow => !!x)
     .sort((a, b) => minutesOf(a.startTime) - minutesOf(b.startTime) || a.nickname.localeCompare(b.nickname, 'th'))
@@ -212,7 +251,7 @@ function scheduleOf(id: string) {
   return { employee, assignments }
 }
 
-export const mockApi: Api = {
+export const mockApi = {
   board: async () => {
     const date = todayISO()
     const rows = rowsFor(date)
@@ -433,7 +472,8 @@ export const mockApi: Api = {
 
   settings: async () => wait(settings),
   updateSettings: async (s) => {
-    settings.qrTokenTtl = s.qrTokenTtl
+    if (s.qrTokenTtl !== undefined) settings.qrTokenTtl = s.qrTokenTtl
+    if (s.lineOaUrl !== undefined) settings.lineOaUrl = s.lineOaUrl
     return wait(settings)
   },
   rotateDisplayKey: async () => {
@@ -451,4 +491,77 @@ export const mockApi: Api = {
     holidays.splice(holidays.findIndex((h) => h.date === date), 1)
     return wait({ ok: true as const })
   },
-}
+
+  requestOverview: async () => {
+    const emp = employees[0]
+    return wait({
+      employee: emp,
+      date: todayISO(),
+      time: '09:15:00',
+      holiday: null,
+      shifts: [],
+      requests: mockOffsiteRequests.filter((r) => r.employeeId === emp.id),
+    })
+  },
+  submitRequestOffsite: async (fd: FormData) => {
+    const shiftId = String(fd.get('shiftId') || 's1')
+    const taskDescription = String(fd.get('taskDescription') || '')
+    const latitude = String(fd.get('latitude') || '13.7563')
+    const longitude = String(fd.get('longitude') || '100.5018')
+    const locationName = String(fd.get('locationName') || '')
+    const emp = employees[0]
+    const req: OffsiteRequest = {
+      kind: 'offsite',
+      id: `off-${Date.now()}`,
+      employeeId: emp.id,
+      shiftId,
+      date: todayISO(),
+      taskDescription,
+      photoPath: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=600&auto=format&fit=crop&q=80',
+      latitude,
+      longitude,
+      locationName: locationName || null,
+      status: 'pending',
+      reviewedBy: null,
+      reviewedAt: null,
+      rejectReason: null,
+      createdAt: new Date().toISOString(),
+      nickname: emp.nickname,
+      gen: emp.gen,
+      projectName: 'TurnPRO',
+      startTime: '09:00',
+      endTime: '18:00',
+    }
+    mockOffsiteRequests.unshift(req)
+    return wait(req, 400)
+  },
+  submitLeaveRequest: async (body) => {
+    const get = (key: string) => body instanceof FormData ? String(body.get(key) ?? '') : String(body[key] ?? '')
+    const request: LeaveRequest = {
+      kind: 'leave', id: `leave-${Date.now()}`, employeeId: employees[0].id,
+      startDate: get('startDate'), endDate: get('endDate'), duration: get('duration') as LeaveRequest['duration'],
+      leaveType: (get('leaveType') || null) as LeaveRequest['leaveType'], reason: get('reason'),
+      medicalCertificatePath: null, medicalCertificatePending: get('medicalCertificatePending') === 'true', medicalCertificateReceivedAt: null,
+      status: 'pending', reviewedBy: null, reviewedAt: null, rejectReason: null, cancelledAt: null,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), nickname: employees[0].nickname, days: [],
+    }
+    return wait(request)
+  },
+  cancelRequest: async () => wait({ ok: true as const }),
+  uploadMedicalCertificate: async () => { throw new ApiError(501, 'โหมดตัวอย่างไม่รองรับการอัปโหลด') },
+  requestOffsiteCheckout: async () => wait({ ok: true as const }),
+  adminRequests: async (status, kind) => wait(mockOffsiteRequests.filter((r) => (!status || r.status === status) && (!kind || r.kind === kind))),
+  reviewRequest: async (_kind, id, action, rejectReason) => {
+    const req = mockOffsiteRequests.find((r) => r.id === id)
+    if (!req) throw new Error('Not found')
+    req.status = action === 'approve' ? 'approved' : 'rejected'
+    req.reviewedBy = 'admin@example.com'
+    req.reviewedAt = new Date().toISOString()
+    req.rejectReason = rejectReason || null
+    return wait(req, 300)
+  },
+  adminCreateLeave: async () => { throw new ApiError(501, 'โหมดตัวอย่างไม่รองรับรายการนี้') },
+  adminUpdateLeave: async () => { throw new ApiError(501, 'โหมดตัวอย่างไม่รองรับรายการนี้') },
+  adminCancelLeave: async () => { throw new ApiError(501, 'โหมดตัวอย่างไม่รองรับรายการนี้') },
+  markMedicalReceived: async () => { throw new ApiError(501, 'โหมดตัวอย่างไม่รองรับรายการนี้') },
+} satisfies Partial<Api>

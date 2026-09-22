@@ -1,12 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { api, loginUrl, USE_MOCK } from '../../lib/api'
 import type { Me } from '../../lib/types'
 import { cx } from '../../components/ui'
 import { ErrorBoundary } from '../../components/ErrorBoundary'
+import { useNotify } from '../../components/notify'
 
 const NAV = [
   { to: '/admin', label: 'บันทึกประจำวัน', end: true, icon: 'M4 5h16M4 12h16M4 19h10' },
+  { to: '/admin/requests', label: 'คำขอ', icon: 'M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z M15 11a3 3 0 11-6 0 3 3 0 016 0z' },
   { to: '/admin/employees', label: 'พนักงาน', icon: 'M16 19v-1a4 4 0 00-4-4H8a4 4 0 00-4 4v1M10 10a3 3 0 100-6 3 3 0 000 6zM20 19v-1a4 4 0 00-3-3.87M15 4.13a3 3 0 010 5.74' },
   { to: '/admin/projects', label: 'โปรเจกและตารางกะ', icon: 'M4 7h16v12H4zM9 7V5h6v2' },
   { to: '/admin/import', label: 'นำเข้า Excel', icon: 'M12 4v11m0 0l-4-4m4 4l4-4M5 20h14' },
@@ -23,10 +25,13 @@ function Icon({ d }: { d: string }) {
 }
 
 export default function AdminLayout() {
+  const notify = useNotify()
   const [me, setMe] = useState<Me | null>(null)
   const [state, setState] = useState<'loading' | 'login' | 'forbidden' | 'ok' | 'error'>('loading')
   const location = useLocation()
   const [displayUrl, setDisplayUrl] = useState<string | null>(null)
+  const [pendingRequests, setPendingRequests] = useState(0)
+  const pendingRequestsRef = useRef<number | null>(null)
 
   useEffect(() => {
     api
@@ -35,10 +40,47 @@ export default function AdminLayout() {
         setMe(m)
         setState(m.isAdmin ? 'ok' : 'forbidden')
         // ลิงก์หน้าจอ QR ไว้ที่เมนู จะได้ไม่ต้องเข้าหน้าตั้งค่าทุกครั้ง
-        if (m.isAdmin) api.settings().then((s) => setDisplayUrl(s.displayUrl)).catch(() => {})
+        if (m.isAdmin) {
+          api.settings().then((s) => setDisplayUrl(s.displayUrl)).catch(() => {})
+        }
       })
       .catch((e) => setState(e.status === 401 ? 'login' : 'error'))
-  }, [])
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (state !== 'ok') return
+    let active = true
+    let loading = false
+    const pull = async () => {
+      if (!active || loading || document.visibilityState !== 'visible') return
+      loading = true
+      try {
+        const requests = await api.adminRequests('pending')
+        if (!active) return
+        const count = requests.length
+        const previous = pendingRequestsRef.current
+        pendingRequestsRef.current = count
+        setPendingRequests(count)
+        window.dispatchEvent(new CustomEvent('attendance:requests-updated'))
+        if (previous !== null && count > previous) notify.toast(`มีคำขอใหม่ ${count - previous} รายการ`)
+      } catch {
+        // การตรวจเบื้องหลังไม่ควรรบกวนการใช้งานหน้าแอดมิน
+      } finally {
+        loading = false
+      }
+    }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void pull()
+    }
+    void pull()
+    const timer = window.setInterval(() => void pull(), 5_000)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [state, notify])
 
   // เลื่อนกลับขึ้นบนเมื่อเปลี่ยนหน้า
   // ต้องมีวงเล็บปีกกา: Chrome รุ่นใหม่ให้ scrollTo คืน Promise ถ้าคืนค่าออกไป React จะเข้าใจว่าเป็นฟังก์ชัน cleanup
@@ -106,7 +148,12 @@ export default function AdminLayout() {
                 }
               >
                 <Icon d={n.icon} />
-                {n.label}
+                <span className="flex-1 truncate">{n.label}</span>
+                {n.to === '/admin/requests' && pendingRequests > 0 && (
+                  <span className="rounded-full bg-absent px-2 py-0.5 text-xs font-bold text-white">
+                    {pendingRequests}
+                  </span>
+                )}
               </NavLink>
             ))}
           </nav>

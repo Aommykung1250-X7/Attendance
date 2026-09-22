@@ -7,13 +7,14 @@ import { adminRoutes } from './routes/admin.js'
 import { authRoutes } from './routes/auth.js'
 import { boardRoutes } from './routes/board.js'
 import { checkinRoutes } from './routes/checkin.js'
+import { requestRoutes } from './routes/requests.js'
 
 export async function buildApp(opts: { logger?: boolean } = {}) {
   const app = Fastify({
     logger: opts.logger ?? { level: config.isProduction ? 'info' : 'debug' },
     // อยู่หลัง nginx เสมอ ต้องเชื่อ X-Forwarded-* เพื่อให้รู้ว่าเป็น https
     trustProxy: true,
-    bodyLimit: 1024 * 1024,
+    bodyLimit: 6 * 1024 * 1024,
   })
 
   await app.register(cookie)
@@ -54,6 +55,7 @@ export async function buildApp(opts: { logger?: boolean } = {}) {
 
   await app.register(authRoutes)
   await app.register(checkinRoutes)
+  await app.register(requestRoutes)
   await app.register(boardRoutes)
   await app.register(adminRoutes)
 

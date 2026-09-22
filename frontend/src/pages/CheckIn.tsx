@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { api, loginUrl } from '../lib/api'
+import { api, ApiError, loginUrl } from '../lib/api'
 import { Button } from '../components/ui'
 import { STATUS_LABEL, type CheckInView } from '../lib/types'
 
@@ -27,8 +27,44 @@ export default function CheckIn() {
     setError(null)
     try {
       setView(await fn())
-    } catch {
-      setError('บันทึกไม่สำเร็จ ลองอีกครั้ง')
+    } catch (e) {
+      const apiError = e instanceof ApiError ? e : null
+      setError(
+        apiError?.data.error === 'location_required' || apiError?.data.error === 'outside_geofence'
+          ? 'ไม่สามารถยืนยันตำแหน่งสำหรับเช็กอินได้ กรุณาเปิดตำแหน่งบนโทรศัพท์และลองใหม่อีกครั้ง'
+          : apiError?.message || 'บันทึกไม่สำเร็จ ลองอีกครั้ง',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function checkInWithLocation() {
+    setBusy(true)
+    setError(null)
+    try {
+      if (!navigator.geolocation) throw new Error('location')
+      const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          maximumAge: 0,
+          timeout: 15_000,
+        }),
+      )
+      setView(
+        await api.confirmCheckIn(token, {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        }),
+      )
+    } catch (e) {
+      const apiError = e instanceof ApiError ? e : null
+      setError(
+        apiError?.data.error === 'location_required' || apiError?.data.error === 'outside_geofence'
+          ? 'ไม่สามารถยืนยันตำแหน่งสำหรับเช็กอินได้ กรุณาเปิดตำแหน่งบนโทรศัพท์และลองใหม่อีกครั้ง'
+          : 'ไม่สามารถยืนยันตำแหน่งสำหรับเช็กอินได้ กรุณาเปิดตำแหน่งบนโทรศัพท์และลองใหม่อีกครั้ง',
+      )
     } finally {
       setBusy(false)
     }
@@ -38,7 +74,7 @@ export default function CheckIn() {
     <main className="mx-auto flex min-h-dvh max-w-[30rem] flex-col px-6 pt-10 pb-safe">
       {!view && !error && <p className="mt-24 text-center text-text-dim">กำลังตรวจสอบ</p>}
       {error && <Notice tone="warn" title="เกิดข้อผิดพลาด" body={error} />}
-      {view && <Body view={view} busy={busy} run={run} token={token} />}
+      {view && <Body view={view} busy={busy} run={run} checkInWithLocation={checkInWithLocation} token={token} />}
     </main>
   )
 }
@@ -47,11 +83,13 @@ function Body({
   view,
   busy,
   run,
+  checkInWithLocation,
   token,
 }: {
   view: CheckInView
   busy: boolean
   run: (fn: () => Promise<CheckInView>) => void
+  checkInWithLocation: () => void
   token: string
 }) {
   // กดยังไม่กลับ: ไม่บันทึกอะไร (หน้าที่เปิดจากการสแกนมักย้อนกลับไม่ได้ จึงแสดงข้อความแทน)
@@ -110,10 +148,24 @@ function Body({
         />
       )
 
+    case 'too_early_for_shift':
+      return (
+        <Notice
+          tone="calm"
+          title="ยังไม่ถึงเวลาเช็กชื่อเข้างาน"
+          body={`กะของคุณเริ่มเวลา ${view.startTime} ระบบจะเปิดให้เช็กชื่อเข้างานได้ตั้งแต่เวลา ${view.availableFrom} เป็นต้นไป`}
+        />
+      )
+
     case 'ready':
       return (
         <>
           <Greeting nickname={view.nickname} />
+          {view.isUpdate && (
+            <p className="mt-2 text-sm font-medium text-brand">
+              คุณได้เช็กชื่อล่วงหน้าไว้แล้ว การกดยืนยันจะอัปเดตเวลาเข้างานเป็นเวลาล่าสุด
+            </p>
+          )}
           <ShiftFacts
             project={view.shift.projectName}
             start={view.shift.startTime}
@@ -125,9 +177,9 @@ function Body({
               variant="primary"
               className="w-full text-base"
               disabled={busy}
-              onClick={() => run(() => api.confirmCheckIn(token))}
+              onClick={checkInWithLocation}
             >
-              {busy ? 'กำลังบันทึก' : 'เช็กชื่อเข้างาน'}
+              {busy ? 'กำลังตรวจตำแหน่ง' : view.isUpdate ? 'ลองจับตำแหน่งใหม่และอัปเดตเวลา' : 'เปิดตำแหน่งและเช็กชื่อเข้างาน'}
             </Button>
             <p className="mt-3 text-center text-[13px] text-text-dim">
               ระบบจะบันทึกเวลา {view.scannedAt} ซึ่งเป็นเวลาที่คุณสแกน
@@ -194,6 +246,28 @@ function Body({
             end={view.shift.endTime}
             scannedAt={view.shift.scannedAt ?? undefined}
           />
+
+          {/* กล่องเตือนกรอกรีเฟล็กซ์รายวัน พร้อมปุ่มเปิด LINE OA */}
+          <div className="mt-6 rounded-2xl border-2 border-brand/30 bg-brand/5 p-4 text-left">
+            <div className="flex items-center gap-2">
+              <span className="flex size-7 items-center justify-center rounded-full bg-[#06C755] text-white font-bold text-sm">
+                L
+              </span>
+              <p className="font-semibold text-text">อย่าลืมส่งรีเฟล็กซ์รายวัน!</p>
+            </div>
+            <p className="mt-2 text-[14px] leading-relaxed text-text-dim">
+              กรุณากรอกแบบฟอร์มรีเฟล็กซ์ประจำวันผ่าน LINE Official Account ของออฟฟิศ
+            </p>
+            <a
+              href={view.lineOaUrl || 'https://line.me'}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#06C755] px-4 font-medium text-white shadow-sm hover:brightness-105 active:scale-[0.98] transition-all"
+            >
+              เปิด LINE เพื่อกรอกรีเฟล็กซ์ ↗
+            </a>
+          </div>
+
           <p className="mt-8 text-[15px] text-text-dim">ปิดหน้านี้ได้เลย</p>
         </div>
       )

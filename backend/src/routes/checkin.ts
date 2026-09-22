@@ -80,7 +80,18 @@ export async function checkinRoutes(app: FastifyInstance) {
       const emp = await findActiveEmployee(auth.data.email)
       if (!emp) return { kind: 'not_registered', email: auth.data.email }
 
-      const { view, acted } = await action(emp, new Date(scan.data.scannedAt))
+      const body = asBody(req.body)
+      const location =
+        path === '/api/checkin'
+          ? {
+              latitude: Number(body.latitude),
+              longitude: Number(body.longitude),
+              accuracy: Number(body.accuracy),
+            }
+          : undefined
+      const at = new Date(scan.data.scannedAt)
+      const { view, acted } =
+        path === '/api/checkin' ? await confirmCheckIn(emp, at, location) : await action(emp, at)
       // ใช้การสแกนหนึ่งครั้งทำได้หนึ่งอย่าง ครั้งถัดไปต้องสแกนใหม่
       if (acted) await writeSessionData(scan.rawId, { ...scan.data, usedAt: new Date().toISOString() })
       return view

@@ -1,10 +1,11 @@
 // ประกอบ "กะของวัน" จากตาราง shifts + attendance + status_overrides แล้วคำนวณสถานะตอนอ่าน
 
 import { and, asc, count, eq, gte, inArray, isNull, lte, or, gt } from 'drizzle-orm'
-import type { DayLogRow, KioskBoard, OverrideStatus } from '../contract.js'
+import type { DayLogRow, KioskBoard, LeaveDuration, OverrideStatus } from '../contract.js'
 import { db, schema, type Tx } from '../db/index.js'
 import type { AttendanceRow, EmployeeRow, OverrideRow, ShiftRow } from '../db/schema.js'
 import { computeStatus } from './status.js'
+import { getSettings } from './settings.js'
 import { addDays, clockOf, localParts, minutesOf, weekdayOf } from './time.js'
 
 export interface InstanceRecord {
@@ -41,6 +42,7 @@ export async function loadRange(
 ): Promise<RangeResult> {
   const q = opts.tx ?? db
   const now = opts.now ?? new Date()
+  const settings = await getSettings()
 
   const shiftRows = await q
     .select({ shift: schema.shifts, employee: schema.employees, projectName: schema.projects.name })
@@ -82,6 +84,20 @@ export async function loadRange(
   const ov = new Map<string, OverrideRow>()
   for (const o of ovRows) ov.set(`${o.shiftId}|${o.date}`, o) // แถวหลังทับแถวก่อน = ค่าล่าสุด
 
+  const leaveRows = await q
+    .select({ day: schema.leaveRequestDays })
+    .from(schema.leaveRequestDays)
+    .innerJoin(schema.leaveRequests, eq(schema.leaveRequestDays.leaveRequestId, schema.leaveRequests.id))
+    .where(
+      and(
+        gte(schema.leaveRequestDays.date, from),
+        lte(schema.leaveRequestDays.date, to),
+        inArray(schema.leaveRequestDays.shiftId, shiftIds),
+        eq(schema.leaveRequests.status, 'approved'),
+      ),
+    )
+  const leaves = new Map(leaveRows.map(({ day }) => [`${day.shiftId}|${day.date}`, day.portion as LeaveDuration]))
+
   const history = new Map<string, number>()
   if (opts.withHistory) {
     const rows = await q
@@ -102,6 +118,7 @@ export async function loadRange(
       const a = att.get(key) ?? null
       const o = ov.get(key) ?? null
       const overrideStatus = (o?.status ?? null) as OverrideStatus | null
+      const leavePortion = leaves.get(key) ?? null
       const status = computeStatus({
         date,
         startTime: shift.startTime,
@@ -109,6 +126,9 @@ export async function loadRange(
         holiday: false,
         override: overrideStatus,
         scannedAt: a?.scannedAt ?? null,
+        isOffsite: a?.isOffsite ?? false,
+        leavePortion,
+        lateGraceMinutes: settings.lateGraceMinutes,
         now,
       })!
       list.push({
@@ -131,7 +151,14 @@ export async function loadRange(
           checkedOutAt: a?.checkedOutAt ? clockOf(a.checkedOutAt) : null,
           status,
           recordedBy: a ? (a.recordedBy === 'self' ? 'self' : 'admin') : null,
-          checkedOutBy: a?.checkedOutBy ? (a.checkedOutBy === 'self' ? 'self' : 'admin') : null,
+          checkedOutBy: a?.checkedOutBy
+            ? a.checkedOutBy === 'self'
+              ? 'self'
+              : a.checkedOutBy === 'system'
+                ? 'system'
+                : 'admin'
+            : null,
+          leavePortion,
           adminNote: o?.status ? o.note || null : null,
           overridden: !!overrideStatus,
           historyCount: history.get(key) ?? 0,
@@ -154,13 +181,24 @@ export async function loadDay(date: string, opts: { employeeId?: string; now?: D
   return { holiday: r.holidays.get(date) ?? null, records: r.byDate.get(date) ?? [] }
 }
 
-export function summarize(rows: { status: string }[]): KioskBoard['summary'] {
-  const s = { expected: rows.length, arrived: 0, late: 0, pending: 0, leave: 0, absent: 0 }
+export function summarize(rows: { status: string; leavePortion?: string | null }[], nowTime?: string): KioskBoard['summary'] {
+  const s: KioskBoard['summary'] = { expected: rows.length, arrived: 0, late: 0, pending: 0, leave: 0, absent: 0, offsite: 0 }
   for (const r of rows) {
+    const activeHalfLeave =
+      !!nowTime &&
+      ((r.leavePortion === 'morning' && nowTime < '13:00:00') ||
+        (r.leavePortion === 'afternoon' && nowTime >= '13:00:00'))
+    if (activeHalfLeave) {
+      s.leave++
+      continue
+    }
     if (r.status === 'ontime') s.arrived++
     else if (r.status === 'late') {
       s.arrived++
       s.late++
+    } else if (r.status === 'offsite') {
+      s.arrived++
+      s.offsite = (s.offsite ?? 0) + 1
     } else if (r.status === 'pending') s.pending++
     else if (r.status === 'leave') s.leave++
     else if (r.status === 'absent') s.absent++

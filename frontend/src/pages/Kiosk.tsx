@@ -160,16 +160,21 @@ function Roster({ board, error, now }: { board: KioskBoard | null; error: string
 
   const { pending, arrived, leave, absent } = useMemo(() => {
     const byStart = (x: ShiftInstance, y: ShiftInstance) => minutesOf(x.startTime) - minutesOf(y.startTime) || x.nickname.localeCompare(y.nickname, 'th')
+    const afternoon = nowMin >= 13 * 60
+    const activeLeave = (r: ShiftInstance) =>
+      r.leavePortion === 'full_day' ||
+      (r.leavePortion === 'morning' && !afternoon) ||
+      (r.leavePortion === 'afternoon' && afternoon)
     return {
-      pending: rows.filter((r) => r.status === 'pending').sort(byStart),
+      pending: rows.filter((r) => r.status === 'pending' && !activeLeave(r)).sort(byStart),
       // คนที่เพิ่งสแกนอยู่บนสุด คนที่ยืนอยู่หน้าจอจะเห็นชื่อตัวเองขึ้นทันที
       arrived: rows
-        .filter((r) => r.status === 'ontime' || r.status === 'late')
+        .filter((r) => (r.status === 'ontime' || r.status === 'late' || r.status === 'offsite') && !activeLeave(r))
         .sort((x, y) => (y.scannedAt ?? '').localeCompare(x.scannedAt ?? '')),
-      leave: rows.filter((r) => r.status === 'leave'),
+      leave: rows.filter((r) => r.status === 'leave' || activeLeave(r)),
       absent: rows.filter((r) => r.status === 'absent'),
     }
-  }, [rows])
+  }, [rows, nowMin])
 
   // ย่อขนาดตัวหนังสือจนรายชื่อพอดีกล่อง
   const fitRef = useRef<HTMLDivElement>(null)
@@ -207,8 +212,10 @@ function Roster({ board, error, now }: { board: KioskBoard | null; error: string
             {arrived.map((r) => {
               const fresh = r.scannedAt && r.recordedBy === 'self' && nowSec - secondsOf(r.scannedAt) < 90 && nowSec >= secondsOf(r.scannedAt)
               return (
-                <Item key={r.shiftId} row={r} dot={r.status === 'late' ? 'late' : 'ontime'} fresh={!!fresh}>
+                <Item key={r.shiftId} row={r} dot={r.status === 'late' ? 'late' : r.status === 'offsite' ? 'offsite' : 'ontime'} fresh={!!fresh}>
                   {r.status === 'late' && <span className="text-late">สาย</span>}
+                  {r.status === 'offsite' && <span className="text-purple-600 font-medium">นอกสถานที่</span>}
+                  {r.leavePortion === 'morning' && <span className="text-brand">ลาครึ่งเช้า</span>}
                   {r.earlyLeaveAt && <span className="text-text-dim">กลับ {hhmm(r.earlyLeaveAt)}</span>}
                   {r.checkedOutAt && <span className="text-text-dim">ออก {hhmm(r.checkedOutAt)}</span>}
                   <span className="tnum">{hhmm(r.scannedAt)}</span>
@@ -220,7 +227,9 @@ function Roster({ board, error, now }: { board: KioskBoard | null; error: string
 
         {(leave.length > 0 || absent.length > 0) && (
           <div className="mt-[0.9em] flex shrink-0 flex-wrap gap-x-[1.6em] gap-y-[0.4em] border-t border-rule pt-[0.7em]">
-            {leave.length > 0 && <Chips label="ลา" tone="text-leave" rows={leave} />}
+            {leave.filter((r) => r.leavePortion === 'full_day').length > 0 && <Chips label="ลา" tone="text-leave" rows={leave.filter((r) => r.leavePortion === 'full_day')} />}
+            {leave.filter((r) => r.leavePortion === 'morning').length > 0 && <Chips label="ลาครึ่งเช้า" tone="text-leave" rows={leave.filter((r) => r.leavePortion === 'morning')} />}
+            {leave.filter((r) => r.leavePortion === 'afternoon').length > 0 && <Chips label="ลาครึ่งบ่าย" tone="text-leave" rows={leave.filter((r) => r.leavePortion === 'afternoon')} />}
             {absent.length > 0 && <Chips label="ขาด" tone="text-absent" rows={absent} />}
           </div>
         )}
@@ -273,8 +282,15 @@ function Column({ tone, title, count, empty, children }: { tone: keyof typeof CO
   )
 }
 
-function Item({ row, dot, fresh, children }: { row: ShiftInstance; dot: 'ring' | 'ontime' | 'late'; fresh?: boolean; children: ReactNode }) {
-  const dotCls = dot === 'ring' ? 'ring-[0.12em] ring-pending ring-inset' : dot === 'late' ? 'bg-late' : 'bg-ontime'
+function Item({ row, dot, fresh, children }: { row: ShiftInstance; dot: 'ring' | 'ontime' | 'late' | 'offsite'; fresh?: boolean; children: ReactNode }) {
+  const dotCls =
+    dot === 'ring'
+      ? 'ring-[0.12em] ring-pending ring-inset'
+      : dot === 'late'
+        ? 'bg-late'
+        : dot === 'offsite'
+          ? 'bg-purple-600'
+          : 'bg-ontime'
   return (
     <li className={`flex break-inside-avoid items-center gap-[0.55em] rounded-[0.4em] px-[0.35em] py-[0.32em] ${fresh ? 'animate-stamp bg-surface shadow-sm ring-1 ring-ontime/40' : ''}`}>
       <span aria-hidden className={`size-[0.55em] shrink-0 rounded-full ${dotCls}`} />

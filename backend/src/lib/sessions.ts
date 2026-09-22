@@ -10,7 +10,7 @@ import { randomToken, sha256 } from './id.js'
 export const COOKIE = {
   /** ล็อกอินของพนักงานและแอดมิน อยู่ยาวเป็นเดือน การเช็กชื่อครั้งถัดไปจะเหลือแค่กดปุ่มเดียว */
   auth: 'att_sid',
-  /** session ชั่วคราวหลังสแกน QR เก็บเวลาที่สแกน อายุ 5 นาที */
+  /** session ชั่วคราวหลังสแกน QR เก็บเวลาที่สแกน อายุ 60 วินาที */
   scan: 'att_scan',
   /** state ของ OAuth ระหว่างไปหน้า Google */
   oauth: 'att_oauth',
@@ -20,7 +20,7 @@ export const TTL = {
   auth: 30 * 24 * 3600_000,
   /** อีเมลที่ไม่อยู่ในระบบ ให้อยู่แค่พอแสดงข้อความ */
   authUnregistered: 10 * 60_000,
-  scan: 5 * 60_000,
+  scan: 60_000,
   oauth: 10 * 60_000,
   import: 30 * 60_000,
 } as const

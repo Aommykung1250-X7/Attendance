@@ -13,12 +13,13 @@ export async function dayLog(date: string): Promise<DayLog> {
   const now = new Date()
   const { holiday, records } = await loadDay(date, { now, withHistory: true })
   const rows = records.map((r) => r.row)
+  const current = localParts(now)
   return {
     date,
     dateLabel: thaiDateLabel(date),
-    isToday: localParts(now).date === date,
+    isToday: current.date === date,
     holiday,
-    summary: summarize(rows),
+    summary: summarize(rows, current.date === date ? current.time : undefined),
     rows,
   }
 }
@@ -30,7 +31,7 @@ const snap = (r: InstanceRecord): SnapState => ({
   checkedOutAt: r.row.checkedOutAt ?? null,
 })
 
-const OVERRIDES: OverrideStatus[] = ['leave', 'present', 'late', 'absent']
+const OVERRIDES: OverrideStatus[] = ['leave', 'present', 'late', 'absent', 'offsite']
 
 export async function adminAction(adminEmail: string, shiftId: string, date: string, act: AdminAction): Promise<DayLogRow> {
   const [shift] = await db.select().from(schema.shifts).where(eq(schema.shifts.id, shiftId))

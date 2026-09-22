@@ -12,6 +12,12 @@ export default function Settings() {
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [ttl, setTtl] = useState('30')
+  const [lineOaUrl, setLineOaUrl] = useState('')
+  const [lateGrace, setLateGrace] = useState('0')
+  const [officeLat, setOfficeLat] = useState('18.800523577253724')
+  const [officeLng, setOfficeLng] = useState('98.95073601100776')
+  const [radius, setRadius] = useState('200')
+  const [accuracy, setAccuracy] = useState('100')
   const notify = useNotify()
 
   useEffect(() => {
@@ -20,6 +26,12 @@ export default function Settings() {
       .then((x) => {
         setS(x)
         setTtl(String(x.qrTokenTtl))
+        setLineOaUrl(x.lineOaUrl ?? '')
+        setLateGrace(String(x.lateGraceMinutes))
+        setOfficeLat(String(x.officeLatitude))
+        setOfficeLng(String(x.officeLongitude))
+        setRadius(String(x.checkinRadiusMeters))
+        setAccuracy(String(x.maxLocationAccuracyMeters))
       })
       .catch((e) => setError(e.message))
   }, [])
@@ -117,9 +129,64 @@ export default function Settings() {
                 )}
               </Field>
             </div>
+
+            <div className="mt-6 border-t border-rule pt-5">
+              <Field label="ลิงก์ LINE OA สำหรับรีเฟล็กประจำวัน" hint="ลิงก์ไปยัง LINE Official Account เมื่อพนักงานเช็กเอาต์เสร็จ ระบบจะแสดงปุ่มให้แตะเพื่อไปกรอก daily reflection ที่ LINE OA (เช่น https://line.me/R/ti/p/@your-oa)">
+                {(id) => (
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input id={id} type="url" placeholder="https://line.me/R/ti/p/@..." value={lineOaUrl} onChange={(e) => setLineOaUrl(e.target.value)} className="flex-1" />
+                    <Button
+                      onClick={async () => {
+                        try {
+                          setS(await api.updateSettings({ lineOaUrl: lineOaUrl.trim() || null }))
+                          setToast('บันทึกลิงก์ LINE OA แล้ว')
+                        } catch (e) {
+                          setError((e as Error).message)
+                        }
+                      }}
+                      disabled={(s.lineOaUrl ?? '') === lineOaUrl.trim()}
+                    >
+                      บันทึก
+                    </Button>
+                  </div>
+                )}
+              </Field>
+            </div>
           </Card>
 
           <Holidays onToast={setToast} />
+
+          <Card className="p-5 xl:col-span-2">
+            <h2 className="display text-lg font-semibold">เวลาและพื้นที่เช็กอิน</h2>
+            <p className="mt-1 text-[15px] text-text-dim">กำหนดเวลาผ่อนผันและขอบเขต GPS ที่ใช้ตรวจตอนเช็กอินผ่าน QR</p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <Field label="อนุโลมเข้าสาย (นาที)">{(id) => <Input id={id} type="number" min={0} max={120} value={lateGrace} onChange={(e) => setLateGrace(e.target.value)} />}</Field>
+              <Field label="ละติจูดสำนักงาน">{(id) => <Input id={id} type="number" step="any" value={officeLat} onChange={(e) => setOfficeLat(e.target.value)} />}</Field>
+              <Field label="ลองจิจูดสำนักงาน">{(id) => <Input id={id} type="number" step="any" value={officeLng} onChange={(e) => setOfficeLng(e.target.value)} />}</Field>
+              <Field label="รัศมีเช็กอิน (เมตร)">{(id) => <Input id={id} type="number" min={10} value={radius} onChange={(e) => setRadius(e.target.value)} />}</Field>
+              <Field label="GPS คลาดเคลื่อนได้ (เมตร)">{(id) => <Input id={id} type="number" min={1} value={accuracy} onChange={(e) => setAccuracy(e.target.value)} />}</Field>
+            </div>
+            <Button
+              className="mt-4"
+              onClick={async () => {
+                try {
+                  const next = await api.updateSettings({
+                    lateGraceMinutes: Number(lateGrace),
+                    officeLatitude: Number(officeLat),
+                    officeLongitude: Number(officeLng),
+                    checkinRadiusMeters: Number(radius),
+                    maxLocationAccuracyMeters: Number(accuracy),
+                  })
+                  setS(next)
+                  setToast('บันทึกเวลาและพื้นที่เช็กอินแล้ว')
+                } catch (e) {
+                  setError((e as Error).message)
+                }
+              }}
+            >
+              บันทึกเวลาและพื้นที่
+            </Button>
+          </Card>
 
           <Card className="p-5 xl:col-span-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

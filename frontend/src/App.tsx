@@ -12,6 +12,8 @@ import ProjectDetail from './pages/admin/ProjectDetail'
 import ImportExcel from './pages/admin/ImportExcel'
 import Report from './pages/admin/Report'
 import Settings from './pages/admin/Settings'
+import RequestPage from './pages/Request'
+import Requests from './pages/admin/Requests'
 import { loginUrl } from './lib/api'
 
 export default function App() {
@@ -31,9 +33,11 @@ function AppRoutes() {
       <Routes>
         <Route path="/display/:displayKey" element={<Kiosk />} />
         <Route path="/checkin" element={<CheckIn />} />
+        <Route path="/request" element={<RequestPage />} />
         <Route path="/auth/error" element={<AuthError />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Today />} />
+          <Route path="requests" element={<Requests />} />
           <Route path="employees" element={<Employees />} />
           <Route path="employees/:id" element={<EmployeeDetail />} />
           <Route path="projects" element={<Projects />} />

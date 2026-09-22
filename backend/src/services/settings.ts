@@ -11,16 +11,60 @@ import { audit } from './audit.js'
 
 export async function readAppSettings(): Promise<AppSettings> {
   const s = await getSettings()
-  return { displayKey: s.displayKey, displayUrl: displayUrl(s.displayKey), qrTokenTtl: s.qrTokenTtl }
+  return {
+    displayKey: s.displayKey,
+    displayUrl: displayUrl(s.displayKey),
+    qrTokenTtl: s.qrTokenTtl,
+    lineOaUrl: s.lineOaUrl ?? null,
+    lateGraceMinutes: s.lateGraceMinutes,
+    officeLatitude: s.officeLatitude,
+    officeLongitude: s.officeLongitude,
+    checkinRadiusMeters: s.checkinRadiusMeters,
+    maxLocationAccuracyMeters: s.maxLocationAccuracyMeters,
+  }
 }
 
 export async function patchAppSettings(adminEmail: string, raw: unknown): Promise<AppSettings> {
   const b = asBody(raw)
-  const ttl = Number(b.qrTokenTtl)
-  if (!Number.isInteger(ttl) || ttl < 10 || ttl > 300) throw badRequest('อายุ token ต้องอยู่ระหว่าง 10 ถึง 300 วินาที')
+  const patch: Partial<{
+    qrTokenTtl: number
+    lineOaUrl: string | null
+    lateGraceMinutes: number
+    officeLatitude: number
+    officeLongitude: number
+    checkinRadiusMeters: number
+    maxLocationAccuracyMeters: number
+  }> = {}
+  if (b.qrTokenTtl !== undefined) {
+    const ttl = Number(b.qrTokenTtl)
+    if (!Number.isInteger(ttl) || ttl < 10 || ttl > 300) throw badRequest('อายุ token ต้องอยู่ระหว่าง 10 ถึง 300 วินาที')
+    patch.qrTokenTtl = ttl
+  }
+  if (b.lineOaUrl !== undefined) {
+    patch.lineOaUrl = b.lineOaUrl ? String(b.lineOaUrl).trim() : null
+  }
+  const intSetting = (key: 'lateGraceMinutes' | 'checkinRadiusMeters' | 'maxLocationAccuracyMeters', min: number, max: number, label: string) => {
+    if (b[key] === undefined) return
+    const value = Number(b[key])
+    if (!Number.isInteger(value) || value < min || value > max) throw badRequest(`${label}ต้องอยู่ระหว่าง ${min} ถึง ${max}`)
+    patch[key] = value
+  }
+  intSetting('lateGraceMinutes', 0, 120, 'เวลาผ่อนผัน ')
+  intSetting('checkinRadiusMeters', 10, 10_000, 'รัศมีเช็กอิน ')
+  intSetting('maxLocationAccuracyMeters', 1, 1_000, 'ค่าความคลาดเคลื่อน GPS ')
+  if (b.officeLatitude !== undefined) {
+    const value = Number(b.officeLatitude)
+    if (!Number.isFinite(value) || value < -90 || value > 90) throw badRequest('ละติจูดสำนักงานไม่ถูกต้อง')
+    patch.officeLatitude = value
+  }
+  if (b.officeLongitude !== undefined) {
+    const value = Number(b.officeLongitude)
+    if (!Number.isFinite(value) || value < -180 || value > 180) throw badRequest('ลองจิจูดสำนักงานไม่ถูกต้อง')
+    patch.officeLongitude = value
+  }
   const before = await getSettings()
-  await updateSettings({ qrTokenTtl: ttl })
-  await audit(db, { adminEmail, action: 'settings_ttl', before: { qrTokenTtl: before.qrTokenTtl }, after: { qrTokenTtl: ttl } })
+  await updateSettings(patch)
+  await audit(db, { adminEmail, action: 'settings_update', before, after: patch })
   return readAppSettings()
 }
 
@@ -80,4 +124,3 @@ export async function resetAttendanceData(adminEmail: string) {
     }
   })
 }
-

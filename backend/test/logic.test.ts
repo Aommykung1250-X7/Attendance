@@ -5,6 +5,7 @@ import { issueQrToken, verifyQrToken } from '../src/lib/qr.js'
 import { applyAssignment, describeSchedule, validateEntries, type PlanShift } from '../src/lib/schedule.js'
 import { selectShift, type SelShift } from '../src/lib/selection.js'
 import { computeStatus, isLate } from '../src/lib/status.js'
+import { haversineMeters, validateCheckinLocation } from '../src/lib/location.js'
 import { addDays, localParts, monthDays, weekdayOf, zoned } from '../src/lib/time.js'
 
 describe('เวลาไทย', () => {
@@ -36,6 +37,10 @@ describe('เกณฑ์สาย (spec หัวข้อ 7)', () => {
   it('มาก่อนเวลามากๆ ก็ปกติ', () => {
     expect(isLate(at('06:00:00'), '2026-09-11', '09:00')).toBe(false)
   })
+  it('ใช้จำนวนนาทีผ่อนผันจาก Settings', () => {
+    expect(isLate(at('09:10:59.999'), '2026-09-11', '09:00', 10)).toBe(false)
+    expect(isLate(at('09:11:00.000'), '2026-09-11', '09:00', 10)).toBe(true)
+  })
 
   const base = { date: '2026-09-11', startTime: '09:00', endTime: '18:00', holiday: false, override: null }
   it('ลำดับการตัดสิน: วันหยุด > override > สแกน > เวลา', () => {
@@ -48,6 +53,28 @@ describe('เกณฑ์สาย (spec หัวข้อ 7)', () => {
   it('ไม่สแกน: ก่อนสิ้นสุดกะ = ยังไม่มา, ตั้งแต่สิ้นสุดกะ = ขาด', () => {
     expect(computeStatus({ ...base, scannedAt: null, now: at('17:59:59') })).toBe('pending')
     expect(computeStatus({ ...base, scannedAt: null, now: at('18:00:00') })).toBe('absent')
+  })
+  it('ลาเต็มวันเป็นลา และลาครึ่งเช้าใช้ 13:00 เป็นเวลาเริ่ม', () => {
+    expect(computeStatus({ ...base, leavePortion: 'full_day', scannedAt: null, now: at('20:00:00') })).toBe('leave')
+    expect(computeStatus({ ...base, leavePortion: 'morning', scannedAt: null, now: at('12:59:59') })).toBe('leave')
+    expect(computeStatus({ ...base, leavePortion: 'morning', scannedAt: at('13:01:00'), now: at('14:00:00') })).toBe('late')
+  })
+})
+
+describe('พื้นที่เช็กอิน', () => {
+  const settings = {
+    officeLatitude: 18.800523577253724,
+    officeLongitude: 98.95073601100776,
+    checkinRadiusMeters: 200,
+    maxLocationAccuracyMeters: 100,
+  }
+  it('พิกัดสำนักงานมีระยะเป็นศูนย์และผ่าน', () => {
+    expect(haversineMeters(settings.officeLatitude, settings.officeLongitude, settings.officeLatitude, settings.officeLongitude)).toBe(0)
+    expect(validateCheckinLocation({ latitude: settings.officeLatitude, longitude: settings.officeLongitude, accuracy: 100 }, settings).distance).toBe(0)
+  })
+  it('ปฏิเสธ accuracy เกินกำหนดและพิกัดนอก 200 เมตร', () => {
+    expect(() => validateCheckinLocation({ latitude: settings.officeLatitude, longitude: settings.officeLongitude, accuracy: 100.1 }, settings)).toThrow()
+    expect(() => validateCheckinLocation({ latitude: settings.officeLatitude + 0.003, longitude: settings.officeLongitude, accuracy: 10 }, settings)).toThrow()
   })
 })
 
@@ -65,9 +92,22 @@ describe('การเลือกกะ (spec หัวข้อ 8)', () => {
   const evening = s('e', '17:00', '20:00')
 
   it('ไม่มีกะ', () => expect(selectShift([], '09:00:00')).toEqual({ kind: 'no_shift_today' }))
-  it('เช็กเข้าล่วงหน้าได้ไม่จำกัดเวลา', () =>
-    expect(selectShift([morning, evening], '06:00:00')).toEqual({ kind: 'ready', shiftId: 'm' }))
-  it('เช็กเข้าแล้วสแกนซ้ำระหว่างกะ → หน้าแจ้งกลับก่อน พร้อมนาทีที่เหลือ', () =>
+  it('สแกนก่อนเวลากะเกิน 30 นาที → too_early_for_shift', () =>
+    expect(selectShift([morning, evening], '06:00:00')).toEqual({
+      kind: 'too_early_for_shift',
+      shiftId: 'm',
+      startTime: '09:30',
+      availableFrom: '09:00',
+    }))
+  it('สแกนภายใน 30 นาทีก่อนเริ่มกะ → ready', () =>
+    expect(selectShift([morning, evening], '09:05:00')).toEqual({ kind: 'ready', shiftId: 'm' }))
+  it('สแกนซ้ำก่อนหรือตรงเวลาเริ่มกะ → ready (isUpdate)', () =>
+    expect(selectShift([{ ...morning, attended: true }, evening], '09:25:00')).toEqual({
+      kind: 'ready',
+      shiftId: 'm',
+      isUpdate: true,
+    }))
+  it('เช็กเข้าแล้วสแกนซ้ำระหว่างกะ (หลังเริ่มกะ) → หน้าแจ้งกลับก่อน พร้อมนาทีที่เหลือ', () =>
     expect(selectShift([{ ...morning, attended: true }, evening], '11:00:00')).toEqual({
       kind: 'early_leave',
       shiftId: 'm',
@@ -129,12 +169,12 @@ describe('การเลือกกะ (spec หัวข้อ 8)', () => {
 
 describe('QR token', () => {
   const secret = 'x'.repeat(32)
-  it('ใช้ได้ในช่วงปัจจุบันและช่วงก่อนหน้า แล้วหมดอายุ', () => {
+  it('ใช้ได้เฉพาะในช่วงปัจจุบัน และหมดอายุทันทีเมื่อเปลี่ยนรอบ', () => {
     const t0 = 1_800_000_000_000
     const { token } = issueQrToken(secret, 'key', 30, t0)
     expect(verifyQrToken(secret, 'key', 30, token, t0)).toBe(true)
-    expect(verifyQrToken(secret, 'key', 30, token, t0 + 30_000)).toBe(true)
-    expect(verifyQrToken(secret, 'key', 30, token, t0 + 60_000)).toBe(false)
+    expect(verifyQrToken(secret, 'key', 30, token, t0 + 29_000)).toBe(true)
+    expect(verifyQrToken(secret, 'key', 30, token, t0 + 30_000)).toBe(false)
   })
   it('สร้างรหัสหน้าจอใหม่แล้ว token เก่าใช้ไม่ได้', () => {
     const { token } = issueQrToken(secret, 'old', 30, 1_800_000_000_000)

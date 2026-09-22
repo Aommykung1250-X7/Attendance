@@ -21,6 +21,10 @@ import type {
   ProjectSummary,
   ScheduleWriteResult,
   ShiftEntry,
+  ShiftInstance,
+  OffsiteRequest,
+  LeaveRequest,
+  UnifiedRequest,
 } from './types'
 
 export class ApiError extends Error {
@@ -69,7 +73,8 @@ const realApi = {
 
   // ---- เช็กชื่อบนมือถือ ----
   checkInView: (token: string) => request<CheckInView>('GET', `/checkin?token=${q(token)}`, undefined, { redirectOn401: true }),
-  confirmCheckIn: (token: string) => request<CheckInView>('POST', '/checkin', { token }, { redirectOn401: true }),
+  confirmCheckIn: (token: string, location: { latitude: number; longitude: number; accuracy: number }) =>
+    request<CheckInView>('POST', '/checkin', { token, ...location }, { redirectOn401: true }),
   confirmEarlyLeave: (token: string) => request<CheckInView>('POST', '/checkin/early-leave', { token }, { redirectOn401: true }),
   confirmCheckOut: (token: string) => request<CheckInView>('POST', '/checkin/checkout', { token }, { redirectOn401: true }),
 
@@ -118,15 +123,48 @@ const realApi = {
 
   // ---- ตั้งค่า ----
   settings: () => get<AppSettings>('/settings'),
-  updateSettings: (s: { qrTokenTtl: number }) => patch<AppSettings>('/settings', s),
+  updateSettings: (s: Partial<Omit<AppSettings, 'displayKey' | 'displayUrl'>>) => patch<AppSettings>('/settings', s),
   rotateDisplayKey: () => post<AppSettings>('/settings/display-key'),
   resetAttendance: () => post<{ ok: true; deletedAttendance: number; deletedOverrides: number }>('/settings/reset-attendance'),
   holidays: (year?: string) => get<Holiday[]>(`/holidays${year ? `?year=${year}` : ''}`),
   addHoliday: (h: Holiday) => post<Holiday>('/holidays', h),
   removeHoliday: (date: string) => del<{ ok: true }>(`/holidays/${date}`),
+
+  // ---- ศูนย์คำขอ ----
+  requestOverview: () =>
+    request<{
+      employee: Employee
+      date: string
+      time: string
+      holiday: string | null
+      shifts: ShiftInstance[]
+      requests: UnifiedRequest[]
+    }>('GET', '/requests/me', undefined, { redirectOn401: true }),
+  submitLeaveRequest: (body: FormData | Record<string, unknown>) => request<LeaveRequest>('POST', '/requests/leave', body),
+  submitRequestOffsite: (body: FormData) => request<OffsiteRequest>('POST', '/requests/offsite', body),
+  cancelRequest: (kind: 'leave' | 'offsite', id: string) => post<{ ok: true }>(`/requests/${kind}/${id}/cancel`),
+  uploadMedicalCertificate: (id: string, file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return request<LeaveRequest>('POST', `/requests/leave/${id}/medical-certificate`, fd)
+  },
+  requestOffsiteCheckout: (shiftId: string) => post<{ ok: true }>(`/requests/offsite/checkout`, { shiftId }),
+  adminRequests: (status?: string, kind?: string) => {
+    const params = new URLSearchParams()
+    if (status) params.set('status', status)
+    if (kind) params.set('kind', kind)
+    const qs = params.toString()
+    return get<UnifiedRequest[]>(`/admin/requests${qs ? `?${qs}` : ''}`)
+  },
+  reviewRequest: (kind: 'leave' | 'offsite', id: string, action: 'approve' | 'reject', rejectReason?: string) =>
+    post<UnifiedRequest>(`/admin/requests/${kind}/${id}/review`, { action, rejectReason }),
+  adminCreateLeave: (body: Record<string, unknown>) => post<LeaveRequest>('/admin/requests/leave', body),
+  adminUpdateLeave: (id: string, body: Record<string, unknown>) => patch<LeaveRequest>(`/admin/requests/leave/${id}`, body),
+  adminCancelLeave: (id: string) => post<LeaveRequest>(`/admin/requests/leave/${id}/cancel`),
+  markMedicalReceived: (id: string) => post<LeaveRequest>(`/admin/requests/leave/${id}/mark-document-received`),
 }
 
 export type Api = typeof realApi
 
 export const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
-export const api: Api = USE_MOCK ? mockApi : realApi
+export const api: Api = USE_MOCK ? (mockApi as unknown as Api) : realApi

@@ -10,6 +10,7 @@ import { createId } from '../lib/id.js'
 import { sql } from 'drizzle-orm'
 import {
   boolean,
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -28,7 +29,11 @@ const id = () =>
 const createdAt = () => timestamp('created_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow()
 
 export const employeeType = pgEnum('employee_type', ['staff', 'student'])
-export const overrideStatus = pgEnum('override_status', ['leave', 'present', 'late', 'absent'])
+export const overrideStatus = pgEnum('override_status', ['leave', 'present', 'late', 'absent', 'offsite'])
+export const offsiteRequestStatus = pgEnum('offsite_request_status', ['pending', 'approved', 'rejected', 'cancelled'])
+export const leaveRequestStatus = pgEnum('leave_request_status', ['pending', 'approved', 'rejected', 'cancelled'])
+export const leaveDuration = pgEnum('leave_duration', ['full_day', 'morning', 'afternoon'])
+export const leaveType = pgEnum('leave_type', ['sick', 'personal'])
 
 export const employees = pgTable('employees', {
   id: id(),
@@ -99,6 +104,12 @@ export const attendance = pgTable(
     scannedAt: timestamp('scanned_at', { withTimezone: true, mode: 'date' }).notNull(),
     earlyLeaveAt: timestamp('early_leave_at', { withTimezone: true, mode: 'date' }),
     checkedOutAt: timestamp('checked_out_at', { withTimezone: true, mode: 'date' }),
+    checkinLatitude: doublePrecision('checkin_latitude'),
+    checkinLongitude: doublePrecision('checkin_longitude'),
+    checkinAccuracyMeters: doublePrecision('checkin_accuracy_meters'),
+    checkinDistanceMeters: doublePrecision('checkin_distance_meters'),
+    /** ทำงานนอกสถานที่หรือไม่ */
+    isOffsite: boolean('is_offsite').notNull().default(false),
     /** 'self' หรืออีเมลของแอดมินที่กดแทน */
     recordedBy: text('recorded_by').notNull(),
     /** 'self' หรืออีเมลของแอดมินที่กดแจ้งกลับก่อนแทน */
@@ -154,6 +165,13 @@ export const settings = pgTable('settings', {
   displayKey: text('display_key').notNull(),
   /** อายุของ QR token (วินาที) */
   qrTokenTtl: integer('qr_token_ttl').notNull(),
+  /** ลิงก์ LINE OA สำหรับส่งรีเฟล็กซ์รายวัน */
+  lineOaUrl: text('line_oa_url'),
+  lateGraceMinutes: integer('late_grace_minutes').notNull().default(0),
+  officeLatitude: doublePrecision('office_latitude').notNull().default(18.800523577253724),
+  officeLongitude: doublePrecision('office_longitude').notNull().default(98.95073601100776),
+  checkinRadiusMeters: integer('checkin_radius_meters').notNull().default(200),
+  maxLocationAccuracyMeters: integer('max_location_accuracy_meters').notNull().default(100),
 })
 
 /** session ฝั่งเซิร์ฟเวอร์ cookie เก็บแค่รหัสสุ่ม ส่วน id ในตารางคือ sha256 ของรหัสนั้น */
@@ -188,8 +206,95 @@ export const auditLog = pgTable(
   (t) => [index('audit_shift_date_idx').on(t.shiftId, t.date), index('audit_created_idx').on(t.createdAt)],
 )
 
+/** คำขอทำงานนอกสถานที่ */
+export const offsiteRequests = pgTable(
+  'offsite_requests',
+  {
+    id: id(),
+    employeeId: text('employee_id')
+      .notNull()
+      .references(() => employees.id, { onDelete: 'cascade' }),
+    shiftId: text('shift_id')
+      .notNull()
+      .references(() => shifts.id, { onDelete: 'cascade' }),
+    date: text('date').notNull(),
+    taskDescription: text('task_description').notNull(),
+    photoPath: text('photo_path').notNull(),
+    latitude: text('latitude').notNull(),
+    longitude: text('longitude').notNull(),
+    locationName: text('location_name'),
+    status: offsiteRequestStatus('status').notNull().default('pending'),
+    reviewedBy: text('reviewed_by'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true, mode: 'date' }),
+    rejectReason: text('reject_reason'),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true, mode: 'date' }),
+    createdAt: createdAt(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('offsite_requests_employee_date_idx').on(t.employeeId, t.date),
+    index('offsite_requests_status_date_idx').on(t.status, t.date),
+  ],
+)
+
+/** คำขอลา 1 รายการ อาจครอบคลุมหลายวัน */
+export const leaveRequests = pgTable(
+  'leave_requests',
+  {
+    id: id(),
+    employeeId: text('employee_id')
+      .notNull()
+      .references(() => employees.id, { onDelete: 'cascade' }),
+    startDate: text('start_date').notNull(),
+    endDate: text('end_date').notNull(),
+    duration: leaveDuration('duration').notNull(),
+    leaveType: leaveType('leave_type'),
+    reason: text('reason').notNull(),
+    medicalCertificatePath: text('medical_certificate_path'),
+    medicalCertificatePending: boolean('medical_certificate_pending').notNull().default(false),
+    medicalCertificateReceivedAt: timestamp('medical_certificate_received_at', { withTimezone: true, mode: 'date' }),
+    status: leaveRequestStatus('status').notNull().default('pending'),
+    reviewedBy: text('reviewed_by'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true, mode: 'date' }),
+    rejectReason: text('reject_reason'),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true, mode: 'date' }),
+    createdAt: createdAt(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('leave_requests_employee_dates_idx').on(t.employeeId, t.startDate, t.endDate),
+    index('leave_requests_status_dates_idx').on(t.status, t.startDate, t.endDate),
+  ],
+)
+
+/** วันที่และกะที่ใบลามีผลจริง (ไม่รวมวันหยุด/วันที่ไม่มีกะ) */
+export const leaveRequestDays = pgTable(
+  'leave_request_days',
+  {
+    id: id(),
+    leaveRequestId: text('leave_request_id')
+      .notNull()
+      .references(() => leaveRequests.id, { onDelete: 'cascade' }),
+    employeeId: text('employee_id')
+      .notNull()
+      .references(() => employees.id, { onDelete: 'cascade' }),
+    shiftId: text('shift_id')
+      .notNull()
+      .references(() => shifts.id, { onDelete: 'cascade' }),
+    date: text('date').notNull(),
+    portion: leaveDuration('portion').notNull(),
+  },
+  (t) => [
+    unique('leave_request_days_request_shift_date_uq').on(t.leaveRequestId, t.shiftId, t.date),
+    index('leave_request_days_shift_date_idx').on(t.shiftId, t.date),
+    index('leave_request_days_employee_date_idx').on(t.employeeId, t.date),
+  ],
+)
+
 export type EmployeeRow = typeof employees.$inferSelect
 export type ProjectRow = typeof projects.$inferSelect
 export type ShiftRow = typeof shifts.$inferSelect
 export type AttendanceRow = typeof attendance.$inferSelect
 export type OverrideRow = typeof statusOverrides.$inferSelect
+export type OffsiteRequestRow = typeof offsiteRequests.$inferSelect
+export type LeaveRequestRow = typeof leaveRequests.$inferSelect

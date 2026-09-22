@@ -22,6 +22,20 @@
       "when": 1789453932193,
       "tag": "0002_omniscient_ravenous",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789984939332,
+      "tag": "0003_panoramic_shinko_yamashiro",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790066559967,
+      "tag": "0004_lean_zombie",
+      "breakpoints": true
     }
   ]
 }
