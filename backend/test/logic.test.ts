@@ -165,6 +165,30 @@ describe('การเลือกกะ (spec หัวข้อ 8)', () => {
       kind: 'all_done',
     })
   })
+
+  it('แอดมินแก้สถานะเป็นปกติ (present) → สแกนเวลาออกงานได้ (ready_checkout)', () => {
+    const presentShift = s('w', '09:00', '18:00', { attended: true, override: 'present' })
+    expect(selectShift([presentShift], '18:00:00')).toEqual({
+      kind: 'ready_checkout',
+      shiftId: 'w',
+    })
+  })
+
+  it('แอดมินแก้สถานะเป็นสาย (late) → สแกนเวลาออกงานได้ (ready_checkout)', () => {
+    const lateShift = s('w', '09:00', '18:00', { attended: true, override: 'late' })
+    expect(selectShift([lateShift], '18:00:00')).toEqual({
+      kind: 'ready_checkout',
+      shiftId: 'w',
+    })
+  })
+
+  it('แอดมินแก้สถานะเป็นนอกสถานที่ (offsite) → สแกนเวลาออกงานได้ (ready_checkout)', () => {
+    const offsiteShift = s('w', '09:00', '18:00', { attended: true, override: 'offsite' })
+    expect(selectShift([offsiteShift], '18:00:00')).toEqual({
+      kind: 'ready_checkout',
+      shiftId: 'w',
+    })
+  })
 })
 
 describe('QR token', () => {

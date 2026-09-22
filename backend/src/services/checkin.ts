@@ -8,7 +8,7 @@ import { loadDay, type InstanceRecord } from '../lib/day.js'
 import { selectShift } from '../lib/selection.js'
 import { getSettings } from '../lib/settings.js'
 import { isLate } from '../lib/status.js'
-import { localParts } from '../lib/time.js'
+import { localParts, zoned } from '../lib/time.js'
 import { validateCheckinLocation, type CheckinLocation } from '../lib/location.js'
 
 /** ต้องมีอีเมลอยู่ในตารางพนักงานและยังไม่ถูกซ่อน ห้ามสร้างผู้ใช้ใหม่อัตโนมัติเด็ดขาด */
@@ -42,6 +42,8 @@ export async function buildView(employee: EmployeeRow, scannedAt: Date): Promise
       endTime: r.shift.endTime,
       attended:
         !!r.attendance ||
+        ['present', 'late', 'offsite'].includes(r.override?.status ?? '') ||
+        ['ontime', 'late', 'offsite'].includes(r.row.status) ||
         r.row.leavePortion === 'full_day' ||
         (r.row.leavePortion === 'morning' && r.shift.endTime <= '13:00') ||
         (r.row.leavePortion === 'afternoon' && r.shift.startTime >= '13:00') ||
@@ -181,16 +183,24 @@ export async function confirmEarlyLeave(employee: EmployeeRow, scannedAt: Date):
   if (current.view.kind !== 'early_leave' || !current.record) return { view: current.view, acted: false }
   const shift = current.record.shift
 
+  const checkinTime = current.record.attendance?.scannedAt ?? zoned(current.date, shift.startTime)
+  const recordedBy = current.record.attendance?.recordedBy ?? current.record.override?.adminEmail ?? 'admin'
+
   await db
-    .update(schema.attendance)
-    .set({ earlyLeaveAt: scannedAt, earlyLeaveBy: 'self' })
-    .where(
-      and(
-        eq(schema.attendance.shiftId, shift.id),
-        eq(schema.attendance.date, current.date),
-        isNull(schema.attendance.earlyLeaveAt),
-      ),
-    )
+    .insert(schema.attendance)
+    .values({
+      employeeId: employee.id,
+      shiftId: shift.id,
+      date: current.date,
+      scannedAt: checkinTime,
+      recordedBy,
+      earlyLeaveAt: scannedAt,
+      earlyLeaveBy: 'self',
+    })
+    .onConflictDoUpdate({
+      target: [schema.attendance.shiftId, schema.attendance.date],
+      set: { earlyLeaveAt: scannedAt, earlyLeaveBy: 'self' },
+    })
 
   const { records } = await loadDay(current.date, { employeeId: employee.id })
   const r = records.find((x) => x.shift.id === shift.id)!
@@ -203,16 +213,24 @@ export async function confirmCheckOut(employee: EmployeeRow, scannedAt: Date): P
   if (current.view.kind !== 'ready_checkout' || !current.record) return { view: current.view, acted: false }
   const shift = current.record.shift
 
+  const checkinTime = current.record.attendance?.scannedAt ?? zoned(current.date, shift.startTime)
+  const recordedBy = current.record.attendance?.recordedBy ?? current.record.override?.adminEmail ?? 'admin'
+
   await db
-    .update(schema.attendance)
-    .set({ checkedOutAt: scannedAt, checkedOutBy: 'self' })
-    .where(
-      and(
-        eq(schema.attendance.shiftId, shift.id),
-        eq(schema.attendance.date, current.date),
-        isNull(schema.attendance.checkedOutAt),
-      ),
-    )
+    .insert(schema.attendance)
+    .values({
+      employeeId: employee.id,
+      shiftId: shift.id,
+      date: current.date,
+      scannedAt: checkinTime,
+      recordedBy,
+      checkedOutAt: scannedAt,
+      checkedOutBy: 'self',
+    })
+    .onConflictDoUpdate({
+      target: [schema.attendance.shiftId, schema.attendance.date],
+      set: { checkedOutAt: scannedAt, checkedOutBy: 'self' },
+    })
 
   const s = await getSettings()
   const { records } = await loadDay(current.date, { employeeId: employee.id })
