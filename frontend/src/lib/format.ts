@@ -57,6 +57,14 @@ export const dateLabel = (date: string) => dateFmt.format(new Date(`${date}T00:0
 const shortFmt = new Intl.DateTimeFormat('th-TH', { day: 'numeric', month: 'short', year: '2-digit', timeZone: 'UTC' })
 export const shortDate = (date: string) => shortFmt.format(new Date(`${date}T00:00:00Z`))
 
+/** "อ. 15 ก.ย. 69" ใช้บนหัวจอในออฟฟิศที่ต้องการวันที่แบบสั้นสุด */
+export function shortWeekdayDate(date: string) {
+  const jsDay = new Date(`${date}T00:00:00Z`).getUTCDay() // 0=อา..6=ส
+  const n = jsDay === 0 ? 7 : jsDay
+  const w = WEEKDAYS.find((x) => x.n === n)!.short
+  return `${w}. ${shortDate(date)}`
+}
+
 const stampFmt = new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: TZ })
 export const stamp = (iso: string) => stampFmt.format(new Date(iso))
 

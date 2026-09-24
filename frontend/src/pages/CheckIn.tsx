@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import { api, loginUrl } from '../lib/api'
 import { Button } from '../components/ui'
 import { STATUS_LABEL, type CheckInView } from '../lib/types'
+import { WEEKDAYS, todayISO } from '../lib/format'
+import mascotFront from '../assets/mascot/mascot-front.png'
 
 /**
  * หน้านี้มีอายุการใช้งานสามวินาที คนยืนอยู่หน้าจอ มือถืออยู่ในมือ
@@ -120,6 +122,7 @@ function Body({
             end={view.shift.endTime}
             scannedAt={view.scannedAt}
           />
+          <MascotCheer nickname={view.nickname} />
           <Actions>
             <Button
               variant="primary"
@@ -141,6 +144,7 @@ function Body({
       return (
         <div className="animate-stamp">
           <Greeting nickname={view.nickname} />
+          <MascotCelebrate late={late} />
           <p
             className={`display mt-5 text-5xl leading-tight font-semibold ${late ? 'text-late' : 'text-ontime'}`}
           >
@@ -208,6 +212,54 @@ function Greeting({ nickname }: { nickname: string }) {
   return <p className="display text-2xl font-medium text-text-dim">สวัสดี {nickname}</p>
 }
 
+/** ชื่อวันของวันที่สแกนเข้างาน (เวลาไทย) เช่น "พฤหัสบดี" */
+function scanWeekday() {
+  const day = new Date(`${todayISO()}T00:00:00Z`).getUTCDay() || 7 // อาทิตย์ = 7 ตาม WEEKDAYS
+  return WEEKDAYS.find((w) => w.n === day)!.long
+}
+
+/** มาสคอตกลางพื้นที่ว่าง พร้อมคำทักตามวันที่สแกน */
+function MascotCheer({ nickname }: { nickname: string }) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
+      <img src={mascotFront} alt="" draggable={false} className="animate-pop h-36 w-auto select-none" />
+      <p className="display mt-4 text-xl leading-snug font-medium">
+        สวัสดีวัน{scanWeekday()}นะ {nickname}
+        <br />
+        ตั้งใจทำงานนะ
+      </p>
+    </div>
+  )
+}
+
+/**
+ * มาสคอตดีใจตอนเช็กชื่อสำเร็จ (สถานะ 'done'): เด้งฟูขึ้นครั้งเดียวพร้อมประกาย/หัวใจลอยรอบตัว
+ * เล่นอัตโนมัติตอน component นี้ mount (จังหวะเดียวกับที่การ์ดทั้งใบ pop เข้ามาด้วย .animate-stamp)
+ * ไม่ใช่ loop — สายมาก็ยังให้กำลังใจเบาๆ ด้วยประกายแทนหัวใจ ไม่ฉลองเหมือนมาตรงเวลาเป๊ะๆ
+ */
+function MascotCelebrate({ late }: { late: boolean }) {
+  const glyphs = late ? ['✨', '💫'] : ['💛', '✨', '💛']
+  return (
+    <div className="relative mt-3 flex justify-center">
+      <img src={mascotFront} alt="" draggable={false} className="animate-mascot-happy h-28 w-auto select-none" />
+      <span className="pointer-events-none absolute inset-x-0 -top-1 flex justify-center gap-2 text-2xl" aria-hidden>
+        {glyphs.map((g, i) => (
+          <span
+            key={i}
+            className="animate-mascot-particle inline-block"
+            style={{ ['--dx' as string]: `${(i - (glyphs.length - 1) / 2) * 18}px`, animationDelay: `${i * 90}ms` }}
+          >
+            {g}
+          </span>
+        ))}
+      </span>
+    </div>
+  )
+}
+
+/** สถานที่ทำงาน: ตอนนี้มีที่เดียว จึงใส่ค่าตายตัวไว้ก่อน */
+const LOCATION = 'turnPRO 215 Camt'
+
 function ShiftFacts({
   project,
   start,
@@ -221,15 +273,16 @@ function ShiftFacts({
 }) {
   const rows: [string, string][] = [
     ['โปรเจก', project],
+    ['สถานที่', LOCATION],
     ['เวลากะ', `${start} – ${end}`],
   ]
   if (scannedAt) rows.push(['เวลาที่สแกน', scannedAt])
   return (
     <dl className="mt-7 border-t border-rule">
       {rows.map(([k, v]) => (
-        <div key={k} className="flex items-center justify-between border-b border-rule py-3">
-          <dt className="text-[15px] text-text-dim">{k}</dt>
-          <dd className="tnum text-[15px] font-medium">{v}</dd>
+        <div key={k} className="flex items-center justify-between gap-4 border-b border-rule py-3">
+          <dt className="shrink-0 text-[15px] whitespace-nowrap text-text-dim">{k}</dt>
+          <dd className="tnum text-right text-[15px] font-medium">{v}</dd>
         </div>
       ))}
     </dl>

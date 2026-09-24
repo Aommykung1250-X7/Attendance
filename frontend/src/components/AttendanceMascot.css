@@ -1,0 +1,496 @@
+/*
+ * AttendanceMascot — "เพื่อนประจำระบบเช็คชื่อ"
+ * แยกไฟล์ต่างหากจาก index.css โดยตั้งใจ: มี keyframes เฉพาะทางจำนวนมากสำหรับมาสคอตตัวเดียว
+ * ไม่อยากให้ไปปนกับ @theme ของทั้งแอป แต่ยังใช้จานสี/โทนเดียวกับ .kiosk-theme (ครีม/ขาว/ฟ้า Cornflower)
+ *
+ * กติกาเรื่อง performance (ตามสเปก): ทุก keyframe ด้านล่างขยับเฉพาะ transform และ opacity เท่านั้น
+ * ไม่มี keyframe ไหนแตะ width/height/top/left/margin ที่ทำให้เกิด layout reflow ระหว่างเล่นแอนิเมชัน
+ * ตำแหน่งการเดิน (ซ้าย-ขวา) ก็ขยับด้วย transform: translateX() ที่คำนวณเป็น px จาก JS ไม่ใช้ left แบบ % ที่ต้องคำนวณ layout ใหม่ทุกครั้ง
+ */
+
+.am-track {
+  position: relative;
+  /* ความสูงพื้นที่เดินเล่น: เล็กลงอัตโนมัติบนจอเล็กผ่าน clamp() ไม่ต้องพึ่ง media query สำหรับเรื่องขนาด */
+  height: clamp(38px, 6.4vh, 70px);
+  pointer-events: none; /* ของตกแต่ง ไม่บังการคลิกอะไรทั้งสิ้น */
+  overflow: visible;
+  z-index: 5;
+}
+
+.am-stage {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  will-change: transform;
+  transform: translateX(0);
+  /* ระยะเวลาคุมจาก inline style (transitionDuration) ต่อการเดินแต่ละครั้ง เพราะระยะทางไม่เท่ากัน */
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* เงานุ่มใต้ตัว ขยับ/จางตามการเดินและสถานะ */
+.am-shadow {
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  width: clamp(26px, 4vw, 46px);
+  height: clamp(6px, 1vh, 10px);
+  border-radius: 999px;
+  background: radial-gradient(closest-side, rgba(58, 42, 34, 0.28), rgba(58, 42, 34, 0) 75%);
+  transform: translateX(-50%);
+  transition: opacity 0.25s ease;
+}
+
+.am-sprite-wrap {
+  position: relative;
+  transform-origin: 50% 100%; /* หมุน/ย่อจากจุดที่เท้าแตะพื้น ไม่ใช่กลางรูป กันลอย */
+}
+
+.am-sprite {
+  display: block;
+  height: clamp(34px, 5.6vh, 60px);
+  width: auto;
+  filter: drop-shadow(0 3px 5px rgba(58, 32, 20, 0.22));
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* จุด LED เรืองแสงเบาๆ บนตัว วางคร่าวๆ ทับตำแหน่งไฟบนชุด (soft glow ให้อภัยความไม่เป๊ะของตำแหน่งได้ เพราะเป็นแสงฟุ้ง) */
+.am-led {
+  position: absolute;
+  border-radius: 999px;
+  background: radial-gradient(closest-side, rgba(149, 187, 234, 0.95), rgba(149, 187, 234, 0) 70%);
+  mix-blend-mode: plus-lighter;
+  animation: am-led-pulse 2.6s ease-in-out infinite;
+  pointer-events: none;
+}
+.am-led-1 {
+  left: 12%;
+  top: 46%;
+  width: 22%;
+  height: 22%;
+}
+.am-led-2 {
+  right: 10%;
+  top: 40%;
+  width: 18%;
+  height: 18%;
+  animation-delay: 0.6s;
+}
+
+/* ===================== ท่วงท่าไอเดิล/เดิน ===================== */
+
+.am-anim-breathe {
+  animation: am-breathe 2.4s ease-in-out infinite;
+}
+.am-anim-walk {
+  animation: am-walk-bob 0.85s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.am-anim-trot {
+  animation: am-trot-bob 0.34s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+/* เงาใต้ตัว: ยุบ/จางตอนตัวลอยขึ้น แล้วพอง/เข้มตอนเท้าลงน้ำหนัก สลับเฟสตรงข้ามกับลำตัวพอดี (ดู am-shadow-step ด้านล่าง) */
+.am-shadow-walk {
+  animation: am-shadow-step 0.62s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.am-shadow-trot {
+  animation: am-shadow-step 0.34s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+.am-anim-sit {
+  animation: am-sit-settle 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.am-anim-glance {
+  animation: am-glance 1.6s ease-in-out both;
+}
+.am-anim-stop {
+  animation: am-stop 0.22s ease-out both;
+}
+.am-anim-alert {
+  animation: am-alert-lean 0.9s ease-in-out both;
+}
+.am-anim-eat {
+  animation: am-eat-nod 1.15s ease-in-out both;
+}
+.am-anim-happy {
+  animation: am-happy-bounce 1.3s cubic-bezier(0.3, 0.7, 0.3, 1.3) both;
+}
+.am-anim-nod {
+  animation: am-nod 0.8s ease-in-out both;
+}
+
+@keyframes am-breathe {
+  0%,
+  100% {
+    transform: scaleY(1) translateY(0);
+  }
+  50% {
+    transform: scaleY(1.015) translateY(-1px);
+  }
+}
+
+/*
+ * เดินจริง: จำลองจังหวะ "ก้าวเท้าลงน้ำหนัก" ของสัตว์สี่ขา 2 ครั้งต่อรอบ (0% กับ 50% คือจังหวะเท้าแตะพื้น)
+ * แต่ละจังหวะมี squash (ตัวยุบกว้าง ตอนรับน้ำหนัก) → stretch (ตัวยืดสูง ตอนลอยตัวขึ้น) → เตรียมลงเท้าอีกข้าง
+ * บวกเอียงตัวซ้าย-ขวาสลับกัน + ส่ายตัวแนวนอนเล็กน้อย (translate ไม่กี่ px) ให้ความรู้สึกน้ำหนักตัวถ่ายไปมาระหว่างก้าว
+ * ไม่ใช่แค่ค่า sine โค้งเดียวแบบเดิม — อ่านเป็น "เดิน" มากกว่า "ลอยเด้ง"
+ */
+@keyframes am-walk-bob {
+  0% {
+    transform: translate(0, 0) rotate(-2deg) scale(1.05, 0.93);
+  }
+  15% {
+    transform: translate(1px, -3px) rotate(0deg) scale(0.97, 1.05);
+  }
+  30% {
+    transform: translate(0.5px, -1px) rotate(2deg) scale(1, 1);
+  }
+  50% {
+    transform: translate(0, 0) rotate(2deg) scale(1.05, 0.93);
+  }
+  65% {
+    transform: translate(-1px, -3px) rotate(0deg) scale(0.97, 1.05);
+  }
+  80% {
+    transform: translate(-0.5px, -1px) rotate(-2deg) scale(1, 1);
+  }
+  100% {
+    transform: translate(0, 0) rotate(-2deg) scale(1.05, 0.93);
+  }
+}
+
+/* ตื่นเต้นวิ่งไปรับขนม: จังหวะเดียวกับ am-walk-bob แต่ก้าวเด้งแรงขึ้น/เอียงมากขึ้น ให้รู้สึกวิ่งกระโดดเบาๆ ไม่ใช่แค่เดินเร็ว */
+@keyframes am-trot-bob {
+  0% {
+    transform: translate(0, 0) rotate(-4deg) scale(1.08, 0.9);
+  }
+  15% {
+    transform: translate(1.5px, -5px) rotate(0deg) scale(0.94, 1.08);
+  }
+  30% {
+    transform: translate(1px, -2px) rotate(3deg) scale(1, 1);
+  }
+  50% {
+    transform: translate(0, 0) rotate(3deg) scale(1.08, 0.9);
+  }
+  65% {
+    transform: translate(-1.5px, -5px) rotate(0deg) scale(0.94, 1.08);
+  }
+  80% {
+    transform: translate(-1px, -2px) rotate(-3deg) scale(1, 1);
+  }
+  100% {
+    transform: translate(0, 0) rotate(-4deg) scale(1.08, 0.9);
+  }
+}
+
+/*
+ * เงาใต้ตัวช่วงเดิน/วิ่ง: เฟสตรงข้ามกับลำตัวเป๊ะๆ (ดู am-walk-bob/am-trot-bob) —
+ * ตอนลำตัวลอยขึ้นสูงสุด (15%/65%) เงาต้องยุบเล็ก+จางลง (ตัวอยู่ไกลพื้นมากขึ้น)
+ * ตอนเท้าลงน้ำหนัก (0%/50%) เงาต้องพองเต็ม+เข้มที่สุด (ตัวใกล้พื้นที่สุด) — ให้ความรู้สึกมีน้ำหนักจริง ไม่ใช่ลอยไปเฉยๆ
+ */
+@keyframes am-shadow-step {
+  0% {
+    transform: translateX(-50%) scale(1, 1);
+    opacity: 0.9;
+  }
+  15% {
+    transform: translateX(-50%) scale(0.72, 0.7);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateX(-50%) scale(0.88, 0.86);
+    opacity: 0.72;
+  }
+  50% {
+    transform: translateX(-50%) scale(1, 1);
+    opacity: 0.9;
+  }
+  65% {
+    transform: translateX(-50%) scale(0.72, 0.7);
+    opacity: 0.5;
+  }
+  80% {
+    transform: translateX(-50%) scale(0.88, 0.86);
+    opacity: 0.72;
+  }
+  100% {
+    transform: translateX(-50%) scale(1, 1);
+    opacity: 0.9;
+  }
+}
+
+@keyframes am-sit-settle {
+  0% {
+    transform: scale(1);
+  }
+  55% {
+    transform: scale(0.94, 0.86);
+  }
+  100% {
+    transform: scale(0.97, 0.9);
+  }
+}
+
+/* หันมองซ้าย/ขวาเฉยๆ ระหว่างหยุดพัก */
+@keyframes am-glance {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  30% {
+    transform: rotate(-4deg);
+  }
+  70% {
+    transform: rotate(4deg);
+  }
+}
+
+/* หยุดกึกทันทีที่มี event: โน้มตัวหน้าเล็กน้อยแล้วตั้งตัว */
+@keyframes am-stop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.05, 0.94) rotate(-2deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* ตื่นเต้นเห็น event: โยกตัวขึ้นสองจังหวะเบาๆ ระหว่างรอวิ่งไปรับขนม */
+@keyframes am-alert-lean {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  25% {
+    transform: translateY(-4px) scale(1.03);
+  }
+  50% {
+    transform: translateY(0) scale(1);
+  }
+  75% {
+    transform: translateY(-4px) scale(1.03);
+  }
+}
+
+/* ดม/งับ/เคี้ยว/กลืน: ก้มหัวจิกๆ แล้วโยกซ้ายขวาช่วงเคี้ยว ปิดท้ายด้วยเงยหน้าเบาๆ ตอนกลืน */
+@keyframes am-eat-nod {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+  12% {
+    transform: translateY(2px) rotate(-3deg);
+  } /* ดม */
+  24% {
+    transform: translateY(3px) rotate(2deg);
+  } /* งับ */
+  40% {
+    transform: translateY(2px) rotate(-6deg);
+  } /* เคี้ยว */
+  52% {
+    transform: translateY(2px) rotate(6deg);
+  }
+  64% {
+    transform: translateY(2px) rotate(-5deg);
+  }
+  76% {
+    transform: translateY(2px) rotate(4deg);
+  }
+  90% {
+    transform: translateY(-2px) rotate(0deg);
+  } /* กลืน */
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+/* ดีใจหลังกินเสร็จ: เด้งฟูขึ้นพร้อมส่ายตัวเบาๆ */
+@keyframes am-happy-bounce {
+  0% {
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+  20% {
+    transform: translateY(-9px) scale(1.1, 0.94) rotate(-4deg);
+  }
+  40% {
+    transform: translateY(0) scale(0.96, 1.06) rotate(4deg);
+  }
+  60% {
+    transform: translateY(-5px) scale(1.05, 0.97) rotate(-3deg);
+  }
+  80% {
+    transform: translateY(0) scale(1) rotate(2deg);
+  }
+  100% {
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes am-nod {
+  0%,
+  100% {
+    transform: rotate(0deg) translateY(0);
+  }
+  30% {
+    transform: rotate(-5deg) translateY(1px);
+  }
+  60% {
+    transform: rotate(4deg) translateY(0);
+  }
+}
+
+@keyframes am-led-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.18);
+  }
+}
+
+/* ===================== ลูกโป่งข้อความ / ไอเท็ม / เอฟเฟกต์ ===================== */
+
+.am-bubble {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-bottom: 6px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid var(--color-rule, #f2e4c4);
+  background: var(--color-surface, #fff);
+  color: var(--color-brand-text, #3a6bb0);
+  font-weight: 600;
+  font-size: clamp(10px, 1.3vh, 13px);
+  padding: 0.35em 0.85em;
+  box-shadow: 0 6px 16px -8px rgba(58, 32, 20, 0.35);
+  animation: am-pop-fade 1.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.am-toast {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  margin-bottom: 6px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  border-radius: 999px;
+  background: var(--color-brand, #95bbea);
+  color: #fff;
+  font-weight: 700;
+  font-size: clamp(10px, 1.35vh, 13px);
+  padding: 0.35em 0.9em;
+  box-shadow: 0 8px 18px -8px rgba(58, 108, 180, 0.55);
+  animation: am-pop-fade 1.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes am-pop-fade {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px) scale(0.85);
+  }
+  15% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  82% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-4px) scale(0.94);
+  }
+}
+
+.am-treat {
+  position: absolute;
+  bottom: 0;
+  left: 100%;
+  margin-left: 4px;
+  width: clamp(14px, 2.2vh, 22px);
+  height: clamp(14px, 2.2vh, 22px);
+  transform-origin: 50% 100%;
+  animation: am-treat-life 1.6s ease-in-out both;
+  filter: drop-shadow(0 2px 3px rgba(58, 32, 20, 0.25));
+}
+
+@keyframes am-treat-life {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.5) rotate(-20deg);
+  }
+  14% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0) scale(0.9) rotate(0deg);
+  }
+  78% {
+    opacity: 1;
+    transform: translateY(0) scale(0.55) rotate(6deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(0) scale(0.15) rotate(0deg);
+  }
+}
+
+.am-particles {
+  position: absolute;
+  inset: -10px -20px auto -20px;
+  height: 46px;
+  pointer-events: none;
+}
+.am-particle {
+  position: absolute;
+  bottom: 0;
+  font-size: clamp(11px, 1.7vh, 16px);
+  opacity: 0;
+  animation: am-particle-float 1.1s ease-out both;
+}
+@keyframes am-particle-float {
+  0% {
+    opacity: 0;
+    transform: translate(0, 4px) scale(0.6);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(var(--dx, 0), -6px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 0), -30px) scale(0.9);
+  }
+}
+
+/* ===================== จอเล็ก: ลดขนาด/พื้นที่ (ลดความเร็วคุมด้วย JS) ===================== */
+@media (max-width: 640px) {
+  .am-track {
+    height: clamp(30px, 5.4vh, 52px);
+  }
+  .am-sprite {
+    height: clamp(26px, 4.6vh, 44px);
+  }
+  .am-bubble,
+  .am-toast {
+    font-size: 10px;
+    padding: 0.3em 0.7em;
+  }
+}
+
+/* prefers-reduced-motion ของทั้งแอป (ดู index.css) บีบทุก animation-duration ให้เกือบ 0 อยู่แล้ว
+   ที่นี่เสริมอีกชั้น: ปิดการ "เดินไปมา" เชิงตำแหน่งโดยสิ้นเชิง เหลือแค่ลอยตัวเบาๆ อยู่กับที่ (คุมจาก JS ที่ mascot.reduceMotion) */
+@media (prefers-reduced-motion: reduce) {
+  .am-stage {
+    transition: none !important;
+  }
+}

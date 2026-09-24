@@ -1,10 +1,10 @@
 @import 'tailwindcss';
 
 /*
- * โทนของระบบ: เทาเข้ม #212529 เป็นสีหลัก ส้ม #F7941D เป็นสีเน้น (จากชุดสีของบริษัท)
- * ส้มหลักสว่างเกินกว่าจะใส่ตัวหนังสือสีขาว (คอนทราสต์ 2.3) ปุ่มส้มจึงใช้ตัวหนังสือสีเข้ม #111315 (8.2)
- * ตัวหนังสือสีส้มบนพื้นขาวใช้ส้มเข้ม #B4450E (5.5) แทน เพราะส้มในชุดสีอ่อนเกินสำหรับตัวเล็ก
- * สีสถานะ มา/ขาด/ลา ยังเป็นเขียว/แดง/น้ำเงิน เพราะคนอ่านความหมายจากสีพวกนี้อยู่แล้ว
+ * โทนพรีเมียม "burnt orange / copper" เวอร์ชันส้มชัดขึ้น: หลัก #A84E1C (เข้มแต่อ่านเป็นส้มชัดเจนกว่ารุ่นแรกที่ค่อนไปทางน้ำตาล)
+ * พื้นครีมอุ่น #F7F2EA การ์ดขาวอุ่น #FFFDF9 ตัวหนังสือถ่านเข้ม #1C1A18 เส้นขอบ/พื้นอ่อนปรับให้ติดโทนส้มมากขึ้น (ไม่ใช่เบจเทาเฉยๆ)
+ * #A84E1C กับตัวหนังสือครีม #F7F2EA คอนทราสต์ 5.0 ผ่าน AA · ตัวหนังสือส้มบนพื้นอ่อนใช้ #96461A คอนทราสต์ 5.3
+ * สีสถานะ มา/ขาด/ลา ยังเป็นเขียว/แดง/น้ำเงิน เพราะคนอ่านความหมายจากสีพวกนี้อยู่แล้ว มีแค่ "สาย" ที่ยังอยู่ตระกูลส้มตามเดิม
  */
 @theme {
   --font-sans: 'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif;
@@ -18,44 +18,74 @@
   --color-chalk: #ffffff;
   --color-chalk-dim: #a7a7a9;
 
-  /* ชุดส้ม (brand) */
-  --color-brand: #f7941d;
-  --color-brand-strong: #f4741e;
-  --color-brand-deep: #e5541a;
-  --color-brand-300: #f9a94a;
-  --color-brand-200: #fabf77;
-  --color-brand-100: #fcd4a5;
-  --color-brand-50: #fdead2;
-  --color-brand-text: #b4450e;
-  --color-on-brand: #111315;
+  /* ชุดส้ม (brand) พรีเมียม burnt orange / copper — เวอร์ชันเข้มแต่ส้มชัด */
+  --color-brand: #a84e1c;
+  --color-brand-strong: #8a3f16;
+  --color-brand-deep: #c96a2a;
+  --color-brand-300: #cf7a3a;
+  --color-brand-200: #e0a874;
+  --color-brand-100: #f0dcc4;
+  --color-brand-50: #f8e2c8;
+  --color-brand-text: #96461a;
+  --color-on-brand: #f7f2ea;
 
-  --color-paper: #f4f4f5;
-  --color-surface: #ffffff;
-  --color-sunken: #ececed;
-  --color-text: #212529;
-  --color-text-dim: #4e5054;
-  --color-rule: #d3d3d4;
-  --color-rule-strong: #a7a7a9;
+  --color-paper: #f7f2ea;
+  --color-surface: #fffdf9;
+  --color-sunken: #f0dcc4;
+  --color-text: #1c1a18;
+  --color-text-dim: #6b5d52;
+  --color-rule: #ecd3b3;
+  --color-rule-strong: #d8a86e;
 
-  --color-accent: #f7941d;
-  --color-focus: #e5541a;
+  --color-accent: #a84e1c;
+  --color-focus: #c96a2a;
 
   --color-ontime: #1d7a4c;
   --color-ontime-bg: #e4f3ea;
-  --color-late: #b4450e;
-  --color-late-bg: #fdead2;
+  --color-late: #96461a;
+  --color-late-bg: #f8e2c8;
   --color-absent: #b3261e;
   --color-absent-bg: #f9e3e1;
   --color-leave: #3b5998;
   --color-leave-bg: #e5eaf6;
   --color-pending: #7a7c7f;
-  --color-pending-bg: #ececed;
+  --color-pending-bg: #ece5db;
 
   --animate-stamp: stamp 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-fade: fade 0.2s ease-out both;
   --animate-pop: pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
   --animate-toast-in: toast-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
   --animate-toast-out: toast-out 0.2s ease-in both;
+  --animate-pulse-soft: pulse-soft 1.8s ease-in-out infinite;
+  --animate-checkin: checkin-in 1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* จอ Kiosk: แถว "ล่าสุด" ใน "มาแล้ว" เลื่อนลงเข้าที่สั้นๆ ตอนมีคนเช็กชื่อใหม่ */
+  --animate-arrive: arrive 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+
+  /*
+   * สีเฉพาะจอ Kiosk (สเปก layout ใหม่) คอนทราสต์ตัวหนังสือทุกคู่ ≥ 4.5:1
+   * k-blue บนพื้นขาว 6.1 · บน tint 5.4 · k-orange บน tint 5.9 · k-zero บนขาว 5.0
+   * k-orange-dot (#C2602F) บนขาวได้แค่ 4.2 จึงใช้กับจุด/แถบเท่านั้น ห้ามใช้กับตัวหนังสือ
+   */
+  --color-k-blue: #2563a8;
+  --color-k-blue-tint: #eaf2fb;
+  --color-k-blue-card: #f5f9fd;
+  --color-k-blue-line: #dce7f4;
+  --color-k-blue-tag-line: #d6e2f0;
+  --color-k-blue-latest: #e6f0fb;
+  --color-k-orange: #9a4318;
+  --color-k-orange-dot: #c2602f;
+  --color-k-orange-tint: #fdf0e6;
+  --color-k-orange-card: #fff8f2;
+  --color-k-orange-line: #f1d3bd;
+  --color-k-red: #a3241c;
+  --color-k-red-tint: #fbe9e7;
+  --color-k-neutral-tint: #f4eee4;
+  --color-k-zero: #7a6e63;
+  --color-k-track: #eadfcc;
+  --color-k-seconds: #8a5a3c;
+  /* มาสคอตดีใจตอนเช็กชื่อสำเร็จ (หน้า CheckIn.tsx): เด้งฟูขึ้นพร้อมส่ายตัวเบาๆ ครั้งเดียวตอนการ์ด "เช็กชื่อสำเร็จ" โผล่ขึ้นมา */
+  --animate-mascot-happy: mascot-happy 1.1s cubic-bezier(0.3, 0.7, 0.3, 1.3) both;
+  --animate-mascot-particle: mascot-particle 1s ease-out both;
 
   @keyframes pop {
     from {
@@ -110,6 +140,133 @@
       opacity: 1;
     }
   }
+  /* จุดสถานะ "ยังไม่มา" เต้นเบาๆ ให้รู้สึกว่ายังรอ ไม่ใช่ค้าง */
+  @keyframes pulse-soft {
+    0%,
+    100% {
+      opacity: 0.7;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+  }
+  @keyframes arrive {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* แถวคนที่เพิ่งเช็กชื่อเข้า "มาแล้ว": ไถลจากขวาเข้าที่ + พื้นหลังฟ้าอ่อนสว่างวาบแล้วจางหาย */
+  @keyframes checkin-in {
+    0% {
+      opacity: 0;
+      transform: translateX(16px);
+      background-color: var(--color-brand-100);
+    }
+    30% {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+
+  /* มาสคอตเด้งดีใจ: ครั้งเดียวตอนหน้า "เช็กชื่อสำเร็จ" โผล่ขึ้นมา (ไม่วนซ้ำ ไม่ใช่ loop) */
+  @keyframes mascot-happy {
+    0% {
+      transform: translateY(0) scale(1) rotate(0deg);
+    }
+    20% {
+      transform: translateY(-10px) scale(1.1, 0.94) rotate(-4deg);
+    }
+    40% {
+      transform: translateY(0) scale(0.96, 1.06) rotate(4deg);
+    }
+    60% {
+      transform: translateY(-6px) scale(1.05, 0.97) rotate(-3deg);
+    }
+    80% {
+      transform: translateY(0) scale(1) rotate(2deg);
+    }
+    100% {
+      transform: translateY(0) scale(1) rotate(0deg);
+    }
+  }
+
+  /* ประกาย/หัวใจลอยขึ้นแล้วจางหายรอบตัวมาสคอตตอนดีใจ ระยะ dx คุมจาก CSS var ต่อจุด */
+  @keyframes mascot-particle {
+    0% {
+      opacity: 0;
+      transform: translate(0, 6px) scale(0.6);
+    }
+    20% {
+      opacity: 1;
+      transform: translate(var(--dx, 0), -6px) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(var(--dx, 0), -32px) scale(0.9);
+    }
+  }
+}
+
+/*
+ * จอในออฟฟิศ (Kiosk): โทน "Cute Minimal" ครีมอุ่น + แดง Sangria + ฟ้า Cornflower ใช้เฉพาะในกรอบ .kiosk-theme
+ * override ตัวแปรสีเดิมเป็นการ "ย้อมสี" เฉพาะสโคป จึงไม่กระทบหน้าแอดมินที่ใช้ตัวแปรชุดเดียวกัน
+ * Cosmic Latte #FFF8E7 (พื้น) · Sangria #930500 (ตัวหนังสือหลัก/ตัวเลขสำคัญ/แจ้งเตือน) · Cornflower #95BBEA (ปุ่ม/ไอคอน/รอง)
+ */
+.kiosk-theme {
+  --color-surface: #ffffff;
+  --color-sunken: #fbeed2;
+  --color-brand: #95bbea;
+  --color-brand-strong: #6f9fdc;
+  --color-brand-deep: #4a7cc2;
+  --color-brand-300: #b7d0f0;
+  --color-brand-200: #d3e3f7;
+  --color-brand-100: #e6effb;
+  --color-brand-50: #f1f7fd;
+  --color-brand-text: #3a6bb0;
+  /* พื้น/การ์ด/ตัวหนังสือตามสเปก layout ใหม่ (ตัวหนังสือรอง #6A5D52 บนพื้นหน้า 5.9 บนขาว 6.4) */
+  --color-paper: #fbf6ec;
+  --color-rule: #ede3d3;
+  --color-rule-strong: #e6cf9c;
+  --color-text: #2a221c;
+  --color-text-dim: #6a5d52;
+
+  --color-ontime: #95bbea;
+  --color-ontime-bg: #eaf2fc;
+  --color-late: #930500;
+  --color-late-bg: #fbe4e2;
+  --color-absent: #930500;
+  --color-absent-bg: #fbe4e2;
+  --color-leave: #95bbea;
+  --color-leave-bg: #eaf2fc;
+  --color-pending: #930500;
+  --color-pending-bg: #fbe4e2;
+}
+
+/* แถบเลื่อนบางๆ สีฟ้า Cornflower ให้รายชื่อ "ยังไม่มา"/"มาแล้ว" ตอนเกิน 6 คน */
+.kiosk-theme .scroll-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-k-blue-line) transparent;
+}
+.kiosk-theme .scroll-list::-webkit-scrollbar {
+  width: 6px;
+}
+.kiosk-theme .scroll-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.kiosk-theme .scroll-list::-webkit-scrollbar-thumb {
+  background: var(--color-k-blue-line);
+  border-radius: 999px;
 }
 
 /* บนพื้นเทาเข้ม (แถบเมนูแอดมิน) สีสถานะต้องสว่างขึ้น */

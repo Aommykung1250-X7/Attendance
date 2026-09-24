@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080">
+  <defs>
+    <linearGradient id="base" x1="8%" y1="4%" x2="96%" y2="100%">
+      <stop offset="0%"  stop-color="#F6DDA6"/>
+      <stop offset="32%" stop-color="#E7AD5C"/>
+      <stop offset="64%" stop-color="#D97A34"/>
+      <stop offset="100%" stop-color="#8C3D1C"/>
+    </linearGradient>
+
+    <radialGradient id="glowTL" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#FFF4DA" stop-opacity="0.55"/>
+      <stop offset="55%" stop-color="#FFE2AE" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#FFE2AE" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="glowBR" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#FFB25E" stop-opacity="0.35"/>
+      <stop offset="60%" stop-color="#E5813A" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#E5813A" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="emberCore" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"  stop-color="#7A2C10" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#7A2C10" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="vignette" cx="50%" cy="48%" r="72%">
+      <stop offset="0%"   stop-color="#000000" stop-opacity="0"/>
+      <stop offset="62%"  stop-color="#000000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#2A0E04" stop-opacity="0.42"/>
+    </radialGradient>
+
+    <linearGradient id="curveLight" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#FFF3D9" stop-opacity="0"/>
+      <stop offset="45%"  stop-color="#FFF3D9" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#FFF3D9" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="curveShadow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#5A2310" stop-opacity="0"/>
+      <stop offset="50%"  stop-color="#5A2310" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#5A2310" stop-opacity="0"/>
+    </linearGradient>
+
+    <filter id="blurLarge" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="90"/>
+    </filter>
+    <filter id="blurMed" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="46"/>
+    </filter>
+    <filter id="blurSoft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="22"/>
+    </filter>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#base)"/>
+
+  <g filter="url(#blurLarge)">
+    <ellipse cx="360" cy="150" rx="760" ry="620" fill="url(#glowTL)"/>
+    <ellipse cx="1640" cy="920" rx="820" ry="640" fill="url(#glowBR)"/>
+    <ellipse cx="1740" cy="1040" rx="480" ry="360" fill="url(#emberCore)"/>
+  </g>
+
+  <g filter="url(#blurMed)" opacity="0.9">
+    <path d="M -200,470 C 260,360 560,520 920,410 C 1280,300 1520,440 2120,300"
+          stroke="url(#curveLight)" stroke-width="150" fill="none" stroke-linecap="round"/>
+    <path d="M -160,760 C 300,860 680,700 1080,800 C 1480,900 1680,760 2140,840"
+          stroke="url(#curveShadow)" stroke-width="180" fill="none" stroke-linecap="round"/>
+    <path d="M -140,180 C 220,120 420,240 760,150 C 1080,70 1300,160 1660,80"
+          stroke="url(#curveLight)" stroke-width="100" fill="none" stroke-linecap="round" opacity="0.6"/>
+  </g>
+
+  <g filter="url(#blurSoft)" opacity="0.5">
+    <path d="M 120,980 C 480,900 860,1000 1300,930 C 1620,880 1780,940 2000,880"
+          stroke="url(#curveLight)" stroke-width="60" fill="none" stroke-linecap="round"/>
+  </g>
+
+  <rect width="1920" height="1080" fill="url(#vignette)"/>
+</svg>
