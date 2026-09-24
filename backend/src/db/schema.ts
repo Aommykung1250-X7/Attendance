@@ -168,6 +168,8 @@ export const settings = pgTable('settings', {
   /** ลิงก์ LINE OA สำหรับส่งรีเฟล็กซ์รายวัน */
   lineOaUrl: text('line_oa_url'),
   lateGraceMinutes: integer('late_grace_minutes').notNull().default(0),
+  /** after_shift_5m = หลังจบกะ 5 นาที, end_of_day = 23:59 ของวัน */
+  autoCheckoutMode: text('auto_checkout_mode').notNull().default('after_shift_5m'),
   officeLatitude: doublePrecision('office_latitude').notNull().default(18.800523577253724),
   officeLongitude: doublePrecision('office_longitude').notNull().default(98.95073601100776),
   checkinRadiusMeters: integer('checkin_radius_meters').notNull().default(200),

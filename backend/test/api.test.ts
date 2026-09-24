@@ -561,6 +561,18 @@ describe('ลบพนักงาน', () => {
 })
 
 describe('วันหยุดและตั้งค่า', () => {
+  it('เลือกเวลาเช็กเอาต์อัตโนมัติได้และปฏิเสธค่าที่ไม่รู้จัก', async () => {
+    const endOfDay = (await admin.json('PATCH', '/api/settings', { autoCheckoutMode: 'end_of_day' })).body
+    expect(endOfDay.autoCheckoutMode).toBe('end_of_day')
+    expect((await admin.json('GET', '/api/settings')).body.autoCheckoutMode).toBe('end_of_day')
+
+    const invalid = await admin.json('PATCH', '/api/settings', { autoCheckoutMode: 'unknown' })
+    expect(invalid.status).toBe(400)
+
+    const afterShift = (await admin.json('PATCH', '/api/settings', { autoCheckoutMode: 'after_shift_5m' })).body
+    expect(afterShift.autoCheckoutMode).toBe('after_shift_5m')
+  })
+
   it('วันหยุดไม่นับ และสร้างรหัสหน้าจอใหม่แล้วลิงก์เดิมใช้ไม่ได้', async () => {
     await admin.json('POST', '/api/holidays', { date: '2026-09-14', name: 'วันหยุดทดสอบ' })
     const mon = (await admin.json('GET', '/api/admin/day?date=2026-09-14')).body

@@ -78,6 +78,7 @@ const settings: AppSettings = {
   qrTokenTtl: 30,
   lineOaUrl: 'https://line.me',
   lateGraceMinutes: 0,
+  autoCheckoutMode: 'after_shift_5m',
   officeLatitude: 18.800523577253724,
   officeLongitude: 98.95073601100776,
   checkinRadiusMeters: 200,
@@ -474,6 +475,7 @@ export const mockApi = {
   updateSettings: async (s) => {
     if (s.qrTokenTtl !== undefined) settings.qrTokenTtl = s.qrTokenTtl
     if (s.lineOaUrl !== undefined) settings.lineOaUrl = s.lineOaUrl
+    if (s.autoCheckoutMode !== undefined) settings.autoCheckoutMode = s.autoCheckoutMode
     return wait(settings)
   },
   rotateDisplayKey: async () => {

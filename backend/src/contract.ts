@@ -199,12 +199,15 @@ export interface Holiday {
   name: string
 }
 
+export type AutoCheckoutMode = 'after_shift_5m' | 'end_of_day'
+
 export interface AppSettings {
   displayKey: string
   displayUrl: string
   qrTokenTtl: number
   lineOaUrl: string | null
   lateGraceMinutes: number
+  autoCheckoutMode: AutoCheckoutMode
   officeLatitude: number
   officeLongitude: number
   checkinRadiusMeters: number

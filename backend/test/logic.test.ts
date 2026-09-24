@@ -6,6 +6,7 @@ import { applyAssignment, describeSchedule, reconcile, validateEntries, type Pla
 import { selectShift, type SelShift } from '../src/lib/selection.js'
 import { computeStatus, isLate } from '../src/lib/status.js'
 import { haversineMeters, validateCheckinLocation } from '../src/lib/location.js'
+import { autoCheckoutDueAt } from '../src/lib/auto-checkout.js'
 import { addDays, localParts, monthDays, weekdayOf, zoned } from '../src/lib/time.js'
 
 describe('เวลาไทย', () => {
@@ -23,6 +24,16 @@ describe('เวลาไทย', () => {
   it('addDays และ monthDays', () => {
     expect(addDays('2026-02-28', 1)).toBe('2026-03-01')
     expect(monthDays('2028-02')).toHaveLength(29)
+  })
+})
+
+describe('เวลาเช็กเอาต์อัตโนมัติ', () => {
+  it('โหมดหลังเลิกงาน 5 นาที ใช้เวลาสิ้นสุดกะบวก 5 นาที', () => {
+    expect(autoCheckoutDueAt('2026-09-24', '18:00', 'after_shift_5m').toISOString()).toBe('2026-09-24T11:05:00.000Z')
+  })
+
+  it('โหมดสิ้นวันรอถึง 23:59 เวลาไทย ไม่ขึ้นกับเวลาเลิกกะ', () => {
+    expect(autoCheckoutDueAt('2026-09-24', '18:00', 'end_of_day').toISOString()).toBe('2026-09-24T16:59:00.000Z')
   })
 })
 

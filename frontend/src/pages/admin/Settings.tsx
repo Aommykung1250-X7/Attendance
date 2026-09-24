@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { shortDate } from '../../lib/format'
-import type { AppSettings, Holiday } from '../../lib/types'
+import type { AppSettings, AutoCheckoutMode, Holiday } from '../../lib/types'
 import { Button, Card, ErrorNote, Field, Input, Loading, PageHeader } from '../../components/ui'
 import { Toast, useNotify } from '../../components/notify'
 
@@ -14,6 +14,7 @@ export default function Settings() {
   const [ttl, setTtl] = useState('30')
   const [lineOaUrl, setLineOaUrl] = useState('')
   const [lateGrace, setLateGrace] = useState('0')
+  const [autoCheckoutMode, setAutoCheckoutMode] = useState<AutoCheckoutMode>('after_shift_5m')
   const [officeLat, setOfficeLat] = useState('18.800523577253724')
   const [officeLng, setOfficeLng] = useState('98.95073601100776')
   const [radius, setRadius] = useState('200')
@@ -28,6 +29,7 @@ export default function Settings() {
         setTtl(String(x.qrTokenTtl))
         setLineOaUrl(x.lineOaUrl ?? '')
         setLateGrace(String(x.lateGraceMinutes))
+        setAutoCheckoutMode(x.autoCheckoutMode)
         setOfficeLat(String(x.officeLatitude))
         setOfficeLng(String(x.officeLongitude))
         setRadius(String(x.checkinRadiusMeters))
@@ -157,6 +159,46 @@ export default function Settings() {
           <Holidays onToast={setToast} />
 
           <Card className="p-5 xl:col-span-2">
+            <h2 className="display text-lg font-semibold">เช็กเอาต์อัตโนมัติ</h2>
+            <p className="mt-1 text-[15px] leading-relaxed text-text-dim">
+              เลือกเวลาที่ระบบจะปิดกะให้พนักงานที่ยังไม่ได้สแกนออก การสแกนออกด้วยตัวเองก่อนถึงเวลานี้จะบันทึกเวลาจริงตามปกติ
+            </p>
+            <fieldset className="mt-4">
+              <legend className="sr-only">เลือกเวลาเช็กเอาต์อัตโนมัติ</legend>
+              <div className="grid gap-3 md:grid-cols-2">
+                <AutoCheckoutChoice
+                  value="after_shift_5m"
+                  selected={autoCheckoutMode}
+                  onChange={setAutoCheckoutMode}
+                  title="หลังเวลาเลิกงาน 5 นาที"
+                  description="เหมาะกับวันทำงานปกติ ระบบจะปิดกะหลังเวลาเลิกงานไม่นาน"
+                />
+                <AutoCheckoutChoice
+                  value="end_of_day"
+                  selected={autoCheckoutMode}
+                  onChange={setAutoCheckoutMode}
+                  title="เวลา 23:59 ของวัน"
+                  description="เหมาะกับวันที่มี OT พนักงานยังสแกนออกและเก็บเวลาจริงได้จนถึงสิ้นวัน"
+                />
+              </div>
+            </fieldset>
+            <Button
+              className="mt-4"
+              disabled={s.autoCheckoutMode === autoCheckoutMode}
+              onClick={async () => {
+                try {
+                  setS(await api.updateSettings({ autoCheckoutMode }))
+                  setToast('บันทึกเวลาเช็กเอาต์อัตโนมัติแล้ว')
+                } catch (e) {
+                  setError((e as Error).message)
+                }
+              }}
+            >
+              บันทึกการเช็กเอาต์อัตโนมัติ
+            </Button>
+          </Card>
+
+          <Card className="p-5 xl:col-span-2">
             <h2 className="display text-lg font-semibold">เวลาและพื้นที่เช็กอิน</h2>
             <p className="mt-1 text-[15px] text-text-dim">กำหนดเวลาผ่อนผันและขอบเขต GPS ที่ใช้ตรวจตอนเช็กอินผ่าน QR</p>
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -206,6 +248,42 @@ export default function Settings() {
 
       <Toast message={toast} onDone={() => setToast(null)} />
     </>
+  )
+}
+
+function AutoCheckoutChoice({
+  value,
+  selected,
+  onChange,
+  title,
+  description,
+}: {
+  value: AutoCheckoutMode
+  selected: AutoCheckoutMode
+  onChange: (value: AutoCheckoutMode) => void
+  title: string
+  description: string
+}) {
+  const active = value === selected
+  return (
+    <label
+      className={`flex min-h-24 cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors focus-within:ring-2 focus-within:ring-brand/35 ${
+        active ? 'border-brand bg-brand/5' : 'border-rule bg-surface hover:border-text-dim/50'
+      }`}
+    >
+      <input
+        type="radio"
+        name="auto-checkout-mode"
+        value={value}
+        checked={active}
+        onChange={() => onChange(value)}
+        className="mt-0.5 size-5 shrink-0 accent-brand"
+      />
+      <span>
+        <span className="display block font-semibold text-text">{title}</span>
+        <span className="mt-1 block text-sm leading-relaxed text-text-dim">{description}</span>
+      </span>
+    </label>
   )
 }
 

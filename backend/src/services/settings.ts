@@ -1,7 +1,7 @@
 // ตั้งค่า: วันหยุด รหัสสุ่มของ URL หน้าจอ อายุ token (spec 9.8)
 
 import { and, asc, eq, gte, lte } from 'drizzle-orm'
-import type { AppSettings, Holiday } from '../contract.js'
+import type { AppSettings, AutoCheckoutMode, Holiday } from '../contract.js'
 import { db, schema } from '../db/index.js'
 import { asBody, badRequest, notFound, reqString } from '../lib/http.js'
 import { randomToken } from '../lib/id.js'
@@ -17,6 +17,7 @@ export async function readAppSettings(): Promise<AppSettings> {
     qrTokenTtl: s.qrTokenTtl,
     lineOaUrl: s.lineOaUrl ?? null,
     lateGraceMinutes: s.lateGraceMinutes,
+    autoCheckoutMode: s.autoCheckoutMode as AutoCheckoutMode,
     officeLatitude: s.officeLatitude,
     officeLongitude: s.officeLongitude,
     checkinRadiusMeters: s.checkinRadiusMeters,
@@ -30,6 +31,7 @@ export async function patchAppSettings(adminEmail: string, raw: unknown): Promis
     qrTokenTtl: number
     lineOaUrl: string | null
     lateGraceMinutes: number
+    autoCheckoutMode: AutoCheckoutMode
     officeLatitude: number
     officeLongitude: number
     checkinRadiusMeters: number
@@ -52,6 +54,12 @@ export async function patchAppSettings(adminEmail: string, raw: unknown): Promis
   intSetting('lateGraceMinutes', 0, 120, 'เวลาผ่อนผัน ')
   intSetting('checkinRadiusMeters', 10, 10_000, 'รัศมีเช็กอิน ')
   intSetting('maxLocationAccuracyMeters', 1, 1_000, 'ค่าความคลาดเคลื่อน GPS ')
+  if (b.autoCheckoutMode !== undefined) {
+    if (b.autoCheckoutMode !== 'after_shift_5m' && b.autoCheckoutMode !== 'end_of_day') {
+      throw badRequest('รูปแบบเช็กเอาต์อัตโนมัติไม่ถูกต้อง')
+    }
+    patch.autoCheckoutMode = b.autoCheckoutMode
+  }
   if (b.officeLatitude !== undefined) {
     const value = Number(b.officeLatitude)
     if (!Number.isFinite(value) || value < -90 || value > 90) throw badRequest('ละติจูดสำนักงานไม่ถูกต้อง')

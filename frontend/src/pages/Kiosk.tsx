@@ -243,10 +243,10 @@ function ArrivedItem({ row, fresh }: { row: ShiftInstance; fresh: boolean }) {
   return (
     <li aria-label={`${row.nickname} ${tagOf(row)} ${stateLabel}${time ? ` เวลา ${time}` : ''}`} className={`flex break-inside-avoid items-center gap-[0.55em] rounded-[0.35em] px-[0.35em] py-[0.34em] ${fresh ? 'animate-stamp bg-surface/80 shadow-sm ring-1 ring-kiosk-arrived/35' : ''}`}>
       <span aria-hidden className={`size-[0.48em] shrink-0 rounded-full ${dot}`} />
-      <span className="min-w-0 flex-1">
+      <span className="min-w-0">
         <PersonName row={row} />
       </span>
-      {time && <span className="tnum shrink-0 text-[0.78em]">{time}</span>}
+      {time && <span className="tnum ml-[0.25em] shrink-0 text-[0.78em]">{time}</span>}
     </li>
   )
 }
