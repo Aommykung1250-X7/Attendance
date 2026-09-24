@@ -221,8 +221,6 @@ export interface OffsiteRequest {
   date: string
   taskDescription: string
   photoPath: string
-  latitude: string
-  longitude: string
   locationName: string | null
   status: OffsiteStatus
   reviewedBy: string | null
@@ -267,4 +265,6 @@ export type UnifiedRequest = LeaveRequest | OffsiteRequest
 export interface ScheduleWriteResult {
   schedule: EmployeeSchedule
   replaced: { projectName: string; weekday: number; startTime: string; endTime: string }[]
+  effectiveFrom: string
+  deferredBecauseTodayUsed: boolean
 }

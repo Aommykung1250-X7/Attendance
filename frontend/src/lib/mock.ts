@@ -93,8 +93,6 @@ const mockOffsiteRequests: OffsiteRequest[] = [
     date: todayISO(),
     taskDescription: 'ออกไปพบลูกค้าที่สุขุมวิท และติดตั้งระบบทดสอบ',
     photoPath: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=600&auto=format&fit=crop&q=80',
-    latitude: '13.736717',
-    longitude: '100.561276',
     locationName: 'สุขุมวิท ซอย 23',
     status: 'pending',
     reviewedBy: null,
@@ -238,6 +236,8 @@ function applySchedule(employeeId: string, projectId: string, entries: ShiftEntr
   return {
     schedule: scheduleOf(employeeId),
     replaced: replaced.map((r) => ({ projectName: projects.find((p) => p.id === r.projectId)!.name, weekday: r.weekday, startTime: r.startTime, endTime: r.endTime })),
+    effectiveFrom: todayISO(),
+    deferredBecauseTodayUsed: false,
   }
 }
 
@@ -506,8 +506,6 @@ export const mockApi = {
   submitRequestOffsite: async (fd: FormData) => {
     const shiftId = String(fd.get('shiftId') || 's1')
     const taskDescription = String(fd.get('taskDescription') || '')
-    const latitude = String(fd.get('latitude') || '13.7563')
-    const longitude = String(fd.get('longitude') || '100.5018')
     const locationName = String(fd.get('locationName') || '')
     const emp = employees[0]
     const req: OffsiteRequest = {
@@ -518,8 +516,6 @@ export const mockApi = {
       date: todayISO(),
       taskDescription,
       photoPath: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=600&auto=format&fit=crop&q=80',
-      latitude,
-      longitude,
       locationName: locationName || null,
       status: 'pending',
       reviewedBy: null,

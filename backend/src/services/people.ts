@@ -191,7 +191,7 @@ export async function writeAssignment(
 
     const current = await loadCurrentShifts(tx, [employeeId])
     const { next, replaced } = applyAssignment(current, employeeId, projectId, entries)
-    await reconcile(tx, current, next, today())
+    const writeResult = await reconcile(tx, current, next, today())
 
     const projectNames = new Map(
       (await tx.select({ id: schema.projects.id, name: schema.projects.name }).from(schema.projects)).map((p) => [p.id, p.name]),
@@ -215,6 +215,8 @@ export async function writeAssignment(
         startTime: r.startTime,
         endTime: r.endTime,
       })),
+      effectiveFrom: writeResult.effectiveFrom,
+      deferredBecauseTodayUsed: writeResult.deferredBecauseTodayUsed,
     }
   })
 }

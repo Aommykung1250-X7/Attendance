@@ -38,7 +38,7 @@ export default function RequestPage() {
       {!mode ? (
         <section className="mt-6 grid gap-3 sm:grid-cols-2">
           <Choice title="ยื่นลา" body="ลาเต็มวัน ครึ่งเช้า ครึ่งบ่าย หรือเลือกช่วงหลายวัน" onClick={() => setMode('leave')} />
-          <Choice title="ทำงานนอกสถานที่" body="สำหรับวันนี้ พร้อมรูปถ่ายและพิกัดสถานที่ทำงาน" onClick={() => setMode('offsite')} />
+          <Choice title="ทำงานนอกสถานที่" body="สำหรับวันนี้ พร้อมระบุสถานที่และแนบรูปถ่ายหลักฐาน" onClick={() => setMode('offsite')} />
         </section>
       ) : (
         <section className="mt-6 rounded-2xl border border-rule bg-surface p-5">
@@ -103,11 +103,11 @@ function LeaveForm({ busy, setBusy, onDone }: { busy: boolean; setBusy: (x: bool
         startDate,
         endDate,
         duration: effectiveDuration,
-        leaveType: effectiveDuration === 'full_day' ? leaveType : '',
+        leaveType,
         reason,
-        medicalCertificatePending: String(effectiveDuration === 'full_day' && leaveType === 'sick' && pendingDocument),
+        medicalCertificatePending: String(leaveType === 'sick' && pendingDocument),
       }
-      if (file) {
+      if (leaveType === 'sick' && file) {
         const form = new FormData()
         Object.entries(values).forEach(([key, value]) => form.append(key, value))
         form.append('file', file)
@@ -132,13 +132,11 @@ function LeaveForm({ busy, setBusy, onDone }: { busy: boolean; setBusy: (x: bool
       {!multiple && (
         <RadioRow label="ช่วงเวลา" value={duration} setValue={(x) => setDuration(x as LeaveDuration)} options={[['full_day', 'เต็มวัน'], ['morning', 'ครึ่งเช้า'], ['afternoon', 'ครึ่งบ่าย']]} />
       )}
-      {effectiveDuration === 'full_day' && (
-        <RadioRow label="ประเภทลา" value={leaveType} setValue={(x) => setLeaveType(x as LeaveType)} options={[['sick', 'ลาป่วย'], ['personal', 'ลากิจ']]} />
-      )}
+      <RadioRow label="ประเภทลา" value={leaveType} setValue={(x) => { const next = x as LeaveType; setLeaveType(next); if (next === 'personal') { setFile(null); setPendingDocument(false) } }} options={[['sick', 'ลาป่วย'], ['personal', 'ลากิจ']]} />
       <label className="block text-sm font-medium">เหตุผล<textarea required maxLength={1000} rows={3} value={reason} onChange={(e) => setReason(e.target.value)} className="mt-1 block w-full rounded-lg border border-rule bg-paper p-3" /></label>
-      {effectiveDuration === 'full_day' && leaveType === 'sick' && (
+      {leaveType === 'sick' && (
         <div className="rounded-xl border border-rule p-3">
-          <label className="block text-sm font-medium">ใบรับรองแพทย์<input className="mt-2 block w-full text-sm" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
+          <FilePicker label="ใบรับรองแพทย์" hint="รองรับ PDF, JPEG และ PNG" accept=".pdf,.jpg,.jpeg,.png" file={file} onChange={setFile} />
           <label className="mt-3 flex items-center gap-2 text-sm"><input type="checkbox" checked={pendingDocument} onChange={(e) => setPendingDocument(e.target.checked)} disabled={!!file} /> จะนำใบรับรองแพทย์มาส่งภายหลัง</label>
         </div>
       )}
@@ -157,20 +155,8 @@ function OffsiteForm({ shifts, busy, setBusy, onDone }: { shifts: ShiftInstance[
   const [task, setTask] = useState('')
   const [place, setPlace] = useState('')
   const [file, setFile] = useState<File | null>(null)
-  const [position, setPosition] = useState<GeolocationPosition | null>(null)
-  const [locating, setLocating] = useState(false)
-
-  const locate = () => {
-    setLocating(true)
-    navigator.geolocation?.getCurrentPosition(
-      (p) => { setPosition(p); setLocating(false) },
-      () => { setLocating(false); notify.toast('กรุณาเปิดตำแหน่งบนโทรศัพท์แล้วลองใหม่', { tone: 'error' }) },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 },
-    )
-  }
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!position) return notify.toast('กรุณาแชร์ตำแหน่งสถานที่ทำงาน', { tone: 'error' })
     if (!file) return notify.toast('กรุณาแนบรูปถ่าย', { tone: 'error' })
     setBusy(true)
     try {
@@ -178,8 +164,6 @@ function OffsiteForm({ shifts, busy, setBusy, onDone }: { shifts: ShiftInstance[
       form.append('shiftId', shiftId)
       form.append('taskDescription', task)
       form.append('locationName', place)
-      form.append('latitude', String(position.coords.latitude))
-      form.append('longitude', String(position.coords.longitude))
       form.append('photo', file)
       await api.submitRequestOffsite(form)
       notify.toast('ส่งคำขอทำงานนอกสถานที่แล้ว')
@@ -195,19 +179,29 @@ function OffsiteForm({ shifts, busy, setBusy, onDone }: { shifts: ShiftInstance[
         <label className="block text-sm font-medium">กะ<select value={shiftId} onChange={(e) => setShiftId(e.target.value)} className="mt-1 block w-full rounded-lg border border-rule bg-paper px-3 py-2">{shifts.map((s) => <option key={s.shiftId} value={s.shiftId}>{s.projectName} {s.startTime}–{s.endTime}</option>)}</select></label>
         <label className="block text-sm font-medium">สิ่งที่จะทำ<textarea required rows={3} value={task} onChange={(e) => setTask(e.target.value)} className="mt-1 block w-full rounded-lg border border-rule bg-paper p-3" /></label>
         <label className="block text-sm font-medium">สถานที่<Input required value={place} onChange={(e) => setPlace(e.target.value)} className="mt-1" /></label>
-        <label className="block text-sm font-medium">รูปถ่าย<input required className="mt-2 block w-full text-sm" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} /></label>
-        <Button type="button" onClick={locate} className="w-full">{locating ? 'กำลังจับตำแหน่ง' : position ? 'จับตำแหน่งแล้ว ✓' : 'เปิดแชร์ตำแหน่ง'}</Button>
+        <FilePicker label="รูปถ่ายหลักฐาน" hint="รองรับ JPEG, PNG และ WebP" accept=".jpg,.jpeg,.png,.webp" file={file} onChange={setFile} />
         <Button type="submit" variant="primary" className="w-full" disabled={busy}>{busy ? 'กำลังส่ง' : 'ส่งคำขอ'}</Button>
       </>}
     </form>
   )
 }
 
+function FilePicker({ label, hint, accept, file, onChange }: { label: string; hint: string; accept: string; file: File | null; onChange: (file: File | null) => void }) {
+  return (
+    <label className="block cursor-pointer rounded-xl border border-dashed border-rule-strong bg-paper px-4 py-3 transition hover:border-brand focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20">
+      <span className="block text-sm font-medium">{label}</span>
+      <span className="mt-1 block break-all text-[13px] text-text-dim">{file ? file.name : `${hint} · กดเพื่อเลือกไฟล์`}</span>
+      <input className="sr-only" type="file" accept={accept} onChange={(e) => onChange(e.target.files?.[0] ?? null)} />
+    </label>
+  )
+}
+
 function RequestCard({ request, onChanged, onError }: { request: UnifiedRequest; onChanged: () => void; onError: (m: string) => void }) {
   const [busy, setBusy] = useState(false)
   const labels = { pending: 'รออนุมัติ', approved: 'อนุมัติแล้ว', rejected: 'ปฏิเสธ', cancelled: 'ยกเลิกแล้ว' }
+  const leaveType = request.kind === 'leave' ? request.leaveType === 'sick' ? 'ลาป่วย' : request.leaveType === 'personal' ? 'ลากิจ' : 'ลา' : ''
   const title = request.kind === 'leave'
-    ? `${request.startDate}${request.endDate !== request.startDate ? ` – ${request.endDate}` : ''} · ${request.duration === 'full_day' ? request.leaveType === 'sick' ? 'ลาป่วย' : 'ลากิจ' : request.duration === 'morning' ? 'ลาครึ่งเช้า' : 'ลาครึ่งบ่าย'}`
+    ? `${request.startDate}${request.endDate !== request.startDate ? ` – ${request.endDate}` : ''} · ${leaveType}${request.duration === 'morning' ? 'ครึ่งเช้า' : request.duration === 'afternoon' ? 'ครึ่งบ่าย' : ''}`
     : `${request.date} · ทำงานนอกสถานที่`
   return (
     <article className="rounded-xl border border-rule bg-surface p-4">
@@ -216,7 +210,7 @@ function RequestCard({ request, onChanged, onError }: { request: UnifiedRequest;
       {request.kind === 'leave' && request.medicalCertificatePath && <a className="mt-2 inline-block text-sm font-medium text-brand underline" target="_blank" rel="noreferrer" href={request.medicalCertificatePath}>เปิดใบรับรองแพทย์</a>}
       {request.status === 'pending' && <Button size="sm" className="mt-3" disabled={busy} onClick={async () => { setBusy(true); try { await api.cancelRequest(request.kind, request.id); onChanged() } catch (e) { onError((e as Error).message) } finally { setBusy(false) } }}>ยกเลิกคำขอ</Button>}
       {request.kind === 'leave' && request.leaveType === 'sick' && request.medicalCertificatePending && (
-        <label className="mt-3 block text-sm font-medium text-brand">แนบใบรับรองภายหลัง<input className="mt-1 block w-full text-sm text-text" type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; try { await api.uploadMedicalCertificate(request.id, file); onChanged() } catch (err) { onError((err as Error).message) } }} /></label>
+        <div className="mt-3"><FilePicker label="แนบใบรับรองภายหลัง" hint="รองรับ PDF, JPEG และ PNG" accept=".pdf,.jpg,.jpeg,.png" file={null} onChange={async (file) => { if (!file) return; try { await api.uploadMedicalCertificate(request.id, file); onChanged() } catch (err) { onError((err as Error).message) } }} /></div>
       )}
     </article>
   )

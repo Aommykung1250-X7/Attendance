@@ -77,8 +77,6 @@ export async function getEmployeeOffsiteStatus(email: string) {
     date: req.date,
     taskDescription: req.taskDescription,
     photoPath: req.photoPath,
-    latitude: req.latitude,
-    longitude: req.longitude,
     locationName: req.locationName,
     status: req.status as OffsiteStatus,
     reviewedBy: req.reviewedBy,
@@ -108,9 +106,7 @@ export async function createOffsiteRequest(
   params: {
     shiftId: string
     taskDescription: string
-    latitude: string
-    longitude: string
-    locationName?: string
+    locationName: string
     photoBuffer: Buffer
     ext: string
   },
@@ -118,10 +114,10 @@ export async function createOffsiteRequest(
   const emp = await findActiveEmployee(email)
   if (!emp) throw notFound('ไม่พบพนักงานบัญชีนี้ในระบบ')
 
-  const { shiftId, taskDescription, latitude, longitude, locationName, photoBuffer, ext } = params
+  const { shiftId, taskDescription, locationName, photoBuffer, ext } = params
   if (!shiftId) throw badRequest('กรุณาเลือกกะทำงาน')
   if (!taskDescription.trim()) throw badRequest('กรุณาระบุงานที่จะทำในวันนี้')
-  if (!latitude || !longitude) throw badRequest('กรุณาแชร์พิกัดสถานที่ทำงาน')
+  if (!locationName.trim()) throw badRequest('กรุณาระบุสถานที่ทำงาน')
   if (!photoBuffer || photoBuffer.length === 0) throw badRequest('กรุณาแนบภาพถ่ายหลักฐาน')
 
   const now = new Date()
@@ -151,9 +147,7 @@ export async function createOffsiteRequest(
       date,
       taskDescription: taskDescription.trim(),
       photoPath,
-      latitude,
-      longitude,
-      locationName: locationName ? locationName.trim() : null,
+      locationName: locationName.trim(),
       status: 'pending',
       createdAt: now,
     })
@@ -167,8 +161,6 @@ export async function createOffsiteRequest(
     date: created.date,
     taskDescription: created.taskDescription,
     photoPath: created.photoPath,
-    latitude: created.latitude,
-    longitude: created.longitude,
     locationName: created.locationName,
     status: created.status as OffsiteStatus,
     reviewedBy: created.reviewedBy,
@@ -212,8 +204,6 @@ export async function listAdminOffsiteRequests(opts: { date?: string; status?: s
       date: req.date,
       taskDescription: req.taskDescription,
       photoPath: req.photoPath,
-      latitude: req.latitude,
-      longitude: req.longitude,
       locationName: req.locationName,
       status: req.status as OffsiteStatus,
       reviewedBy: req.reviewedBy,
@@ -296,8 +286,6 @@ export async function reviewOffsiteRequest(
         date: updated.date,
         taskDescription: updated.taskDescription,
         photoPath: updated.photoPath,
-        latitude: updated.latitude,
-        longitude: updated.longitude,
         locationName: updated.locationName,
         status: 'approved',
         reviewedBy: adminEmail,
@@ -349,8 +337,6 @@ export async function reviewOffsiteRequest(
       date: updated.date,
       taskDescription: updated.taskDescription,
       photoPath: updated.photoPath,
-      latitude: updated.latitude,
-      longitude: updated.longitude,
       locationName: updated.locationName,
       status: 'rejected',
       reviewedBy: adminEmail,

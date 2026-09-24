@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { api } from '../lib/api'
@@ -9,8 +9,8 @@ import type { KioskBoard, ShiftInstance } from '../lib/types'
  * จอติดผนังในออฟฟิศ เปิดทิ้งไว้ทั้งวัน ไม่มีใครมาเลื่อน
  * ทุกอย่างต้องอยู่ในจอเดียว ห้ามมีแถบเลื่อน ถ้ารายชื่อยาวให้ตัวหนังสือเล็กลงเองแทน
  *
- * ซ้าย: ตัวเลขสรุปของวันนี้ → นาฬิกาเซิร์ฟเวอร์ → QR
- * ขวา: กล่อง "ใครต้องมาวันนี้" แบ่งเป็น ยังไม่มา | มาแล้ว และแถบ ลา/ขาด ด้านล่าง
+ * โครงหน้าตามจออ้างอิง: ยังไม่มาซ้าย มาแล้วขวา และแถบ QR/ลา/ขาดด้านล่าง
+ * รายชื่อไม่ตัดด้วย ellipsis และไม่มีข้อความสถานะต่อท้าย ใช้สีจุดแทนเพื่อให้ใส่ชื่อได้มากที่สุด
  */
 export default function Kiosk() {
   const { displayKey = 'demo' } = useParams()
@@ -77,34 +77,8 @@ export default function Kiosk() {
   useWakeLock()
 
   return (
-    <div className="grid h-dvh w-screen grid-cols-[clamp(300px,29vw,540px)_minmax(0,1fr)] gap-[clamp(16px,2vw,40px)] overflow-hidden bg-paper p-[clamp(16px,2.2vw,44px)] text-text">
-      {/* ================= ซ้าย ================= */}
-      <aside className="flex min-h-0 flex-col gap-[clamp(14px,2.6vh,32px)]">
-        <Summary summary={board?.summary} />
-
-        <div>
-          <p className="display truncate text-[clamp(15px,2.1vh,24px)] text-text-dim">{board?.dateLabel ?? ' '}</p>
-          <p className="display tnum text-[clamp(56px,12.5vh,148px)] leading-[0.95] font-semibold tracking-tight">
-            {clock.hh}
-            <span className="text-text-dim">:</span>
-            {clock.mm}
-            <span className="ml-[0.12em] align-top text-[0.36em] text-text-dim">{clock.ss}</span>
-          </p>
-        </div>
-
-        {/* การ์ด QR แนวตั้ง: ข้อความอยู่บน รูปอยู่ล่าง */}
-        <div className="mt-auto flex min-h-0 flex-col items-center rounded-2xl border border-rule bg-surface p-[clamp(12px,1.8vh,22px)] text-center shadow-sm">
-          <p className="display text-[clamp(20px,3.1vh,34px)] leading-tight font-semibold">สแกนเพื่อเช็กชื่อ</p>
-          <p className="mt-1 text-[clamp(13px,1.7vh,18px)] leading-snug text-text-dim">ใช้กล้องมือถือสแกน แล้วเข้าสู่ระบบด้วย Google</p>
-          <div className="mt-[clamp(10px,1.6vh,18px)] rounded-xl border border-rule bg-white p-[clamp(6px,0.9vh,10px)]">
-            <canvas ref={canvasRef} className="block size-[clamp(140px,27vh,300px)]" aria-label="QR สำหรับเช็กชื่อ" />
-          </div>
-          <p className="mt-[clamp(8px,1.2vh,12px)] text-[clamp(12px,1.5vh,16px)] text-text-dim">รหัสเปลี่ยนทุก {board?.tokenExpiresIn ?? 30} วินาที</p>
-        </div>
-      </aside>
-
-      {/* ================= ขวา ================= */}
-      <Roster board={board} error={error} now={now} />
+    <div className="h-dvh w-screen overflow-hidden bg-kiosk-frame p-[clamp(10px,1.7vw,34px)] text-text">
+      <Roster board={board} error={error} now={now} canvasRef={canvasRef} clock={clock} />
 
       {/* ปุ่มเต็มจอ ซ่อนเองเมื่ออยู่ในโหมดเต็มจอแล้ว (เบราว์เซอร์บังคับให้ต้องกดเองหนึ่งครั้ง) */}
       {!fullscreen.active && fullscreen.supported && (
@@ -120,40 +94,27 @@ export default function Kiosk() {
 }
 
 // ---------------------------------------------------------------------------
-// ตัวเลขสรุป (มุมซ้ายบน)
-// ---------------------------------------------------------------------------
-
-function Summary({ summary }: { summary?: KioskBoard['summary'] }) {
-  const s = summary ?? { expected: 0, arrived: 0, late: 0, pending: 0, leave: 0, absent: 0 }
-  const cells: { label: string; n: number; tone: string; bg?: string }[] = [
-    { label: 'ต้องมา', n: s.expected, tone: 'text-text' },
-    { label: 'มาแล้ว', n: s.arrived, tone: 'text-ontime', bg: 'bg-ontime-bg' },
-    { label: 'ยังไม่มา', n: s.pending, tone: 'text-brand-text', bg: 'bg-brand-50' },
-    { label: 'สาย', n: s.late, tone: 'text-late' },
-    { label: 'ลา', n: s.leave, tone: 'text-leave' },
-    { label: 'ขาด', n: s.absent, tone: 'text-absent' },
-  ]
-  return (
-    <dl className="grid grid-cols-3 gap-px overflow-hidden rounded-2xl border border-rule bg-rule shadow-sm">
-      {cells.map((c) => (
-        <div key={c.label} className={`${c.bg ?? 'bg-surface'} px-[clamp(10px,1vw,18px)] py-[clamp(8px,1.5vh,16px)]`}>
-          <dd className={`display tnum text-[clamp(28px,5.4vh,58px)] leading-none font-semibold ${c.n > 0 ? c.tone : 'text-text-dim/40'}`}>{c.n}</dd>
-          <dt className="mt-[0.4em] text-[clamp(12px,1.7vh,18px)] text-text-dim">{c.label}</dt>
-        </div>
-      ))}
-    </dl>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// กล่องรายชื่อ (ขวา)
+// รายชื่อและแถบล่าง
 // ---------------------------------------------------------------------------
 
 const hhmm = (t: string | null) => (t ? t.slice(0, 5) : '')
 /** ป้ายกำกับชื่อ: Gen สำหรับนักศึกษา ชื่อโปรเจกสำหรับพนักงานประจำ เพราะชื่อเล่นซ้ำกันได้ */
 const tagOf = (r: ShiftInstance) => r.gen ?? r.projectName
+const shortDate = new Intl.DateTimeFormat('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit', timeZone: 'Asia/Bangkok' })
 
-function Roster({ board, error, now }: { board: KioskBoard | null; error: string | null; now: Date }) {
+function Roster({
+  board,
+  error,
+  now,
+  canvasRef,
+  clock,
+}: {
+  board: KioskBoard | null
+  error: string | null
+  now: Date
+  canvasRef: RefObject<HTMLCanvasElement | null>
+  clock: ReturnType<typeof bangkok>
+}) {
   const b = bangkok(now)
   const nowMin = minutesOf(`${b.hh}:${b.mm}`)
   const rows = board?.today ?? []
@@ -176,9 +137,10 @@ function Roster({ board, error, now }: { board: KioskBoard | null; error: string
     }
   }, [rows, nowMin])
 
-  // ย่อขนาดตัวหนังสือจนรายชื่อพอดีกล่อง
+  // เพิ่มคอลัมน์ตามพื้นที่ก่อน จากนั้นจึงย่อขนาดตัวหนังสือจนชื่อเต็มทุกชื่อพอดี โดยไม่ใช้ ellipsis
   const fitRef = useRef<HTMLDivElement>(null)
-  useFitText(fitRef, [pending.length, arrived.length, leave.length, absent.length])
+  const fitKey = rows.map((r) => `${r.shiftId}:${r.nickname}:${tagOf(r)}:${r.status}:${r.leavePortion ?? ''}`).join('|')
+  useFitText(fitRef, [pending.length, arrived.length, leave.length, absent.length, fitKey])
 
   const secondsOf = (t: string) => {
     const [h, m, s] = t.split(':').map(Number)
@@ -186,145 +148,149 @@ function Roster({ board, error, now }: { board: KioskBoard | null; error: string
   }
   const nowSec = Number(b.hh) * 3600 + Number(b.mm) * 60 + Number(b.ss)
 
-  let body: ReactNode
-  if (error && !board) body = <Center big>{error}</Center>
-  else if (!board) body = <Center>กำลังโหลดรายชื่อ</Center>
-  else if (rows.length === 0) body = <Center big>{board.dateLabel.includes('·') ? 'วันนี้เป็นวันหยุด' : 'วันนี้ไม่มีใครมีตารางงาน'}</Center>
-  else
-    body = (
-      <div ref={fitRef} className="flex min-h-0 flex-1 flex-col text-[calc(clamp(14px,1.2vw,26px)*var(--fit,1))]">
-        {/* ฝั่งที่มีชื่อมากกว่าได้พื้นที่มากกว่า (ระหว่าง 35–65%) เช้าๆ ฝั่งยังไม่มากว้าง สายๆ ฝั่งมาแล้วกว้าง */}
-        <div className="grid min-h-0 flex-1 gap-[0.9em]" style={{ gridTemplateColumns: split(pending.length, arrived.length) }}>
-          <Column tone="pending" title="ยังไม่มา" count={pending.length} empty="มาครบทุกคนแล้ว">
-            {pending.map((r) => {
-              const overdue = minutesOf(r.startTime) <= nowMin
-              return (
-                <Item key={r.shiftId} row={r} dot="ring">
-                  <span className={`tnum ${overdue ? 'text-late' : 'text-text-dim'}`}>
-                    {overdue ? 'เลย ' : 'เข้า '}
-                    {r.startTime}
-                  </span>
-                </Item>
-              )
-            })}
-          </Column>
-          <Column tone="arrived" title="มาแล้ว" count={arrived.length} empty="ยังไม่มีใครสแกน">
-            {arrived.map((r) => {
-              const fresh = r.scannedAt && r.recordedBy === 'self' && nowSec - secondsOf(r.scannedAt) < 90 && nowSec >= secondsOf(r.scannedAt)
-              return (
-                <Item key={r.shiftId} row={r} dot={r.status === 'late' ? 'late' : r.status === 'offsite' ? 'offsite' : 'ontime'} fresh={!!fresh}>
-                  {r.status === 'late' && <span className="text-late">สาย</span>}
-                  {r.status === 'offsite' && <span className="text-purple-600 font-medium">นอกสถานที่</span>}
-                  {r.leavePortion === 'morning' && <span className="text-brand">ลาครึ่งเช้า</span>}
-                  {r.earlyLeaveAt && <span className="text-text-dim">กลับ {hhmm(r.earlyLeaveAt)}</span>}
-                  {r.checkedOutAt && <span className="text-text-dim">ออก {hhmm(r.checkedOutAt)}</span>}
-                  <span className="tnum">{hhmm(r.scannedAt)}</span>
-                </Item>
-              )
-            })}
-          </Column>
-        </div>
-
-        {(leave.length > 0 || absent.length > 0) && (
-          <div className="mt-[0.9em] flex shrink-0 flex-wrap gap-x-[1.6em] gap-y-[0.4em] border-t border-rule pt-[0.7em]">
-            {leave.filter((r) => r.leavePortion === 'full_day').length > 0 && <Chips label="ลา" tone="text-leave" rows={leave.filter((r) => r.leavePortion === 'full_day')} />}
-            {leave.filter((r) => r.leavePortion === 'morning').length > 0 && <Chips label="ลาครึ่งเช้า" tone="text-leave" rows={leave.filter((r) => r.leavePortion === 'morning')} />}
-            {leave.filter((r) => r.leavePortion === 'afternoon').length > 0 && <Chips label="ลาครึ่งบ่าย" tone="text-leave" rows={leave.filter((r) => r.leavePortion === 'afternoon')} />}
-            {absent.length > 0 && <Chips label="ขาด" tone="text-absent" rows={absent} />}
-          </div>
-        )}
-      </div>
-    )
+  const loadingMessage = error && !board
+    ? error
+    : !board
+      ? 'กำลังโหลดรายชื่อ'
+      : rows.length === 0
+        ? board.dateLabel.includes('·') ? 'วันนี้เป็นวันหยุด' : 'วันนี้ไม่มีใครมีตารางงาน'
+        : null
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-col rounded-2xl border border-rule bg-surface p-[clamp(16px,2vw,32px)] shadow-sm">
-      <header className="mb-[clamp(10px,1.8vh,22px)] flex items-baseline justify-between gap-4">
-        <h1 className="display text-[clamp(20px,3.2vh,36px)] font-semibold">ใครต้องมาวันนี้</h1>
-        {error && board && <p className="text-[clamp(13px,1.6vh,17px)] text-late">{error}</p>}
-      </header>
-      {body}
+    <main ref={fitRef} className="grid h-full min-h-0 grid-cols-[minmax(260px,31fr)_minmax(0,69fr)] grid-rows-[minmax(0,1fr)_clamp(108px,14.5vh,158px)] gap-[clamp(9px,1vw,18px)] rounded-[clamp(14px,1.4vw,24px)] bg-surface p-[clamp(10px,1.1vw,20px)] text-[calc(clamp(15px,1.22vw,25px)*var(--fit,1))]">
+      <section className="flex min-h-0 min-w-0 flex-col gap-[0.65em]">
+        <header className="flex shrink-0 items-center gap-[0.8em] px-[0.15em]">
+          <h1 className="display text-[1.65em] leading-none font-semibold">ใครต้องมาวันนี้</h1>
+          <CountBadge count={board?.summary.expected ?? rows.length} tone="neutral" />
+        </header>
+        <StatusPanel tone="pending" title="ยังไม่มา" count={pending.length} empty="มาครบทุกคนแล้ว" columnWidth="8.7em">
+          {pending.map((r) => <PendingItem key={r.shiftId} row={r} />)}
+        </StatusPanel>
+      </section>
+
+      <StatusPanel tone="arrived" title="มาแล้ว" count={arrived.length} empty={loadingMessage ?? 'ยังไม่มีใครสแกน'} columnWidth="14em" notice={error && board ? error : null}>
+        {arrived.map((r) => {
+          const fresh = r.scannedAt && r.recordedBy === 'self' && nowSec - secondsOf(r.scannedAt) < 90 && nowSec >= secondsOf(r.scannedAt)
+          return <ArrivedItem key={r.shiftId} row={r} fresh={!!fresh} />
+        })}
+      </StatusPanel>
+
+      <div className="col-span-2 grid min-h-0 grid-cols-[minmax(250px,20fr)_minmax(0,39fr)_minmax(0,41fr)] gap-[clamp(9px,1vw,18px)]">
+        <TimeQrCard canvasRef={canvasRef} now={now} clock={clock} />
+        <FooterStatus tone="leave" label="ลา" rows={leave} />
+        <FooterStatus tone="absent" label="ขาด" rows={absent} />
+      </div>
+    </main>
+  )
+}
+
+const COLUMN_TONE = {
+  pending: { panel: 'bg-kiosk-pending-bg', bar: 'bg-kiosk-pending', count: 'bg-kiosk-pending text-ink-3' },
+  arrived: { panel: 'bg-kiosk-arrived-bg', bar: 'bg-kiosk-arrived', count: 'bg-kiosk-arrived text-white' },
+} as const
+
+function StatusPanel({ tone, title, count, empty, columnWidth, notice, children }: { tone: keyof typeof COLUMN_TONE; title: string; count: number; empty: string; columnWidth: string; notice?: string | null; children: ReactNode }) {
+  const t = COLUMN_TONE[tone]
+  return (
+    <section className={`flex min-h-0 min-w-0 flex-1 flex-col rounded-[0.75em] px-[0.8em] pt-[0.75em] pb-[0.6em] ${t.panel}`}>
+      <div className="mb-[0.45em] flex items-center gap-[0.5em] px-[0.35em]">
+        <span aria-hidden className={`h-[1.35em] w-[0.12em] ${t.bar}`} />
+        <h2 className="display text-[1.35em] leading-none font-semibold">{title}</h2>
+        {notice && <span className="ml-auto text-[0.66em] text-absent">{notice}</span>}
+        <CountBadge count={count} tone={tone} className={notice ? '' : 'ml-auto'} />
+      </div>
+      {count === 0 ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center px-[0.35em] text-center text-text-dim/75">{empty}</div>
+      ) : (
+        <ul data-fit className="min-h-0 flex-1 overflow-hidden [column-fill:auto] [column-gap:1.15em]" style={{ columnWidth }}>
+          {children}
+        </ul>
+      )}
     </section>
   )
 }
 
-function split(a: number, b: number) {
-  const r = a + b === 0 ? 0.5 : Math.min(0.65, Math.max(0.35, a / (a + b)))
-  return `minmax(0,${r.toFixed(3)}fr) minmax(0,${(1 - r).toFixed(3)}fr)`
-}
-
-/**
- * สองช่องมีพื้นหลังคนละสี มองจากไกลก็แยกออกทันที
- * ยังไม่มา = พื้นส้มอ่อน (สีหลักของบริษัท) · มาแล้ว = พื้นเขียวอ่อน (สีเดียวกับสถานะ "ตรงเวลา")
- */
-const COLUMN_TONE = {
-  pending: { panel: 'bg-brand-50 border-brand-100', bar: 'bg-brand', count: 'bg-brand text-on-brand' },
-  arrived: { panel: 'bg-ontime-bg border-ontime/20', bar: 'bg-ontime', count: 'bg-ontime text-white' },
-} as const
-
-function Column({ tone, title, count, empty, children }: { tone: keyof typeof COLUMN_TONE; title: string; count: number; empty: string; children: ReactNode }) {
-  const t = COLUMN_TONE[tone]
+function CountBadge({ count, tone, className = '' }: { count: number; tone: 'neutral' | keyof typeof COLUMN_TONE; className?: string }) {
+  const color = tone === 'neutral' ? 'bg-sunken text-text' : COLUMN_TONE[tone].count
   return (
-    <div className={`flex min-h-0 min-w-0 flex-col rounded-[0.8em] border px-[0.75em] pt-[0.7em] pb-[0.5em] ${t.panel}`}>
-      <div className="mb-[0.45em] flex items-center gap-[0.5em] px-[0.35em]">
-        <span aria-hidden className={`h-[1.1em] w-[0.28em] rounded-full ${t.bar}`} />
-        <h2 className="display text-[1.35em] leading-none font-semibold">{title}</h2>
-        <span className={`display tnum ml-auto min-w-[1.9em] rounded-full px-[0.55em] py-[0.12em] text-center text-[1.1em] font-semibold ${t.count}`}>{count}</span>
-      </div>
-      {count === 0 ? (
-        <p className="px-[0.35em] pt-[0.4em] text-text-dim">{empty}</p>
-      ) : (
-        // ถ้าคนเยอะ รายชื่อไหลต่อเป็นคอลัมน์ที่สองในกล่องเดียวกัน
-        <ul data-fit className="min-h-0 flex-1 overflow-hidden [column-fill:auto] [column-gap:1.4em] [column-width:11em]">
-          {children}
-        </ul>
-      )}
-    </div>
+    <span className={`display tnum inline-flex size-[1.85em] shrink-0 items-center justify-center rounded-full text-[1.05em] font-medium ${color} ${className}`}>{count}</span>
   )
 }
 
-function Item({ row, dot, fresh, children }: { row: ShiftInstance; dot: 'ring' | 'ontime' | 'late' | 'offsite'; fresh?: boolean; children: ReactNode }) {
-  const dotCls =
-    dot === 'ring'
-      ? 'ring-[0.12em] ring-pending ring-inset'
-      : dot === 'late'
-        ? 'bg-late'
-        : dot === 'offsite'
-          ? 'bg-purple-600'
-          : 'bg-ontime'
+function PersonName({ row }: { row: ShiftInstance }) {
   return (
-    <li className={`flex break-inside-avoid items-center gap-[0.55em] rounded-[0.4em] px-[0.35em] py-[0.32em] ${fresh ? 'animate-stamp bg-surface shadow-sm ring-1 ring-ontime/40' : ''}`}>
-      <span aria-hidden className={`size-[0.55em] shrink-0 rounded-full ${dotCls}`} />
-      <span className="min-w-0 flex-1 truncate">
-        <span className="display font-medium">{row.nickname}</span>
-        <span className="ml-[0.4em] text-[0.78em] text-text-dim">{tagOf(row)}</span>
-      </span>
-      <span className="flex shrink-0 items-baseline gap-[0.6em] text-[0.9em]">{children}</span>
+    <span className="inline-flex min-w-0 items-baseline gap-[0.36em] whitespace-nowrap">
+      <span className="display font-medium">{row.nickname}</span>
+      <span className="text-[0.7em] text-text/85">{tagOf(row)}</span>
+    </span>
+  )
+}
+
+function PendingItem({ row }: { row: ShiftInstance }) {
+  return (
+    <li className="flex break-inside-avoid items-center px-[0.35em] py-[0.36em]" aria-label={`${row.nickname} ${tagOf(row)} ยังไม่มา`}>
+      <PersonName row={row} />
     </li>
   )
 }
 
-function Chips({ label, tone, rows }: { label: string; tone: string; rows: ShiftInstance[] }) {
+function ArrivedItem({ row, fresh }: { row: ShiftInstance; fresh: boolean }) {
+  const left = row.checkedOutAt ?? row.earlyLeaveAt
+  const state = left ? 'checkout' : row.status === 'offsite' ? 'offsite' : row.status === 'late' ? 'late' : 'ontime'
+  const stateLabel = state === 'checkout' ? row.earlyLeaveAt && !row.checkedOutAt ? 'ออกก่อนเวลา' : 'ออกงานแล้ว' : state === 'offsite' ? 'ทำงานนอกสถานที่' : state === 'late' ? 'เข้างานสาย' : 'เข้างานตรงเวลา'
+  const dot = state === 'checkout' ? 'bg-kiosk-checkout' : state === 'offsite' ? 'bg-kiosk-offsite' : state === 'late' ? 'bg-kiosk-pending' : 'bg-kiosk-arrived'
+  const time = hhmm(left ?? row.scannedAt)
   return (
-    <p className="min-w-0 text-[0.92em]">
-      <span className={`display font-semibold ${tone}`}>{label}</span>
-      <span className="ml-[0.6em] text-text">
-        {rows.map((r, i) => (
-          <span key={r.shiftId}>
-            {i > 0 && <span className="text-text-dim">, </span>}
-            {r.nickname}
-            <span className="ml-[0.3em] text-[0.8em] text-text-dim">{tagOf(r)}</span>
-          </span>
-        ))}
+    <li aria-label={`${row.nickname} ${tagOf(row)} ${stateLabel}${time ? ` เวลา ${time}` : ''}`} className={`flex break-inside-avoid items-center gap-[0.55em] rounded-[0.35em] px-[0.35em] py-[0.34em] ${fresh ? 'animate-stamp bg-surface/80 shadow-sm ring-1 ring-kiosk-arrived/35' : ''}`}>
+      <span aria-hidden className={`size-[0.48em] shrink-0 rounded-full ${dot}`} />
+      <span className="min-w-0 flex-1">
+        <PersonName row={row} />
       </span>
-    </p>
+      {time && <span className="tnum shrink-0 text-[0.78em]">{time}</span>}
+    </li>
   )
 }
 
-function Center({ children, big }: { children: ReactNode; big?: boolean }) {
+function TimeQrCard({ canvasRef, now, clock }: { canvasRef: RefObject<HTMLCanvasElement | null>; now: Date; clock: ReturnType<typeof bangkok> }) {
   return (
-    <div className="flex flex-1 items-center justify-center text-center">
-      <p className={big ? 'display text-[clamp(22px,3.4vh,40px)] text-text-dim' : 'text-text-dim'}>{children}</p>
-    </div>
+    <section className="grid min-h-0 min-w-0 grid-cols-[auto_1fr] items-center gap-[0.55em] rounded-[0.75em] bg-sunken p-[0.35em]">
+      <div className="rounded-[0.55em] bg-white p-[0.22em]">
+        <canvas ref={canvasRef} className="block size-[clamp(76px,10.5vh,118px)]" aria-label="QR สำหรับเช็กชื่อ" />
+      </div>
+      <div className="min-w-0 border-l-[0.16em] border-white px-[0.55em]">
+        <p className="tnum whitespace-nowrap text-[0.78em] leading-none">{shortDate.format(now)}</p>
+        <p className="display tnum mt-[0.16em] whitespace-nowrap text-[1.72em] leading-none font-medium tracking-tight">
+          {clock.hh}:{clock.mm}<span className="ml-[0.08em] align-top text-[0.46em]">{clock.ss}</span>
+        </p>
+      </div>
+    </section>
+  )
+}
+
+const FOOTER_TONE = {
+  leave: { panel: 'bg-kiosk-leave-bg', label: 'text-kiosk-leave', bar: 'bg-kiosk-leave', badge: 'bg-kiosk-leave text-white' },
+  absent: { panel: 'bg-kiosk-absent-bg', label: 'text-kiosk-absent', bar: 'bg-kiosk-absent', badge: 'bg-kiosk-absent text-white' },
+} as const
+
+function FooterStatus({ tone, label, rows }: { tone: keyof typeof FOOTER_TONE; label: string; rows: ShiftInstance[] }) {
+  const t = FOOTER_TONE[tone]
+  return (
+    <section className={`flex min-h-0 min-w-0 items-center gap-[0.65em] rounded-[0.75em] px-[0.72em] py-[0.55em] ${t.panel}`}>
+      <span aria-hidden className={`h-[1.8em] w-[0.12em] shrink-0 ${t.bar}`} />
+      <h2 className={`display shrink-0 text-[1.45em] leading-none font-semibold ${t.label}`}>{label}</h2>
+      <div data-fit className="flex min-w-0 flex-1 flex-wrap items-center gap-x-[0.7em] gap-y-[0.22em] overflow-hidden text-[0.82em]">
+        {rows.map((r) => (
+          <span key={r.shiftId} className="inline-flex items-baseline gap-[0.28em] whitespace-nowrap">
+            <span className="display font-medium">{r.nickname}</span>
+            <span className="text-[0.72em]">{tagOf(r)}</span>
+            {tone === 'leave' && r.leavePortion && r.leavePortion !== 'full_day' && (
+              <span className={`rounded-full px-[0.5em] py-[0.08em] text-[0.65em] font-semibold text-white ${t.bar}`}>{r.leavePortion === 'morning' ? 'เช้า' : 'บ่าย'}</span>
+            )}
+          </span>
+        ))}
+      </div>
+      <span className={`display tnum inline-flex size-[1.85em] shrink-0 items-center justify-center rounded-full text-[1.05em] font-medium ${t.badge}`}>{rows.length}</span>
+    </section>
   )
 }
 

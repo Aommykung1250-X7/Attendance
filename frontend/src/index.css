@@ -51,6 +51,19 @@
   --color-pending: #7a7c7f;
   --color-pending-bg: #ececed;
 
+  /* จอ QR แบบติดผนัง: สีถูกแยกเป็น token เพื่อไม่กระทบหน้าจอแอดมิน */
+  --color-kiosk-frame: #dedede;
+  --color-kiosk-pending: #ffa500;
+  --color-kiosk-pending-bg: #ffdda0;
+  --color-kiosk-arrived: #00a85a;
+  --color-kiosk-arrived-bg: #a7efcf;
+  --color-kiosk-checkout: #2457f5;
+  --color-kiosk-offsite: #ec4899;
+  --color-kiosk-leave: #a100e8;
+  --color-kiosk-leave-bg: #e7bdf3;
+  --color-kiosk-absent: #f10d0d;
+  --color-kiosk-absent-bg: #ffb3b3;
+
   --animate-stamp: stamp 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   --animate-fade: fade 0.2s ease-out both;
   --animate-pop: pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;

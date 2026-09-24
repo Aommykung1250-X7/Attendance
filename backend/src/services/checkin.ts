@@ -1,6 +1,6 @@
 // การเช็กชื่อของพนักงาน (spec หัวข้อ 8)
 
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { CheckInView } from '../contract.js'
 import { db, schema } from '../db/index.js'
 import type { EmployeeRow } from '../db/schema.js'

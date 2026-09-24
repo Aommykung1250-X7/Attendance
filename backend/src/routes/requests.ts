@@ -62,7 +62,9 @@ async function parseMultipart(req: Parameters<FastifyInstance['post']>[1] extend
   let file: { buffer: Buffer; ext: string } | null = null
   for await (const part of req.parts()) {
     if (part.type === 'file') {
-      file = { buffer: await part.toBuffer(), ext: path.extname(part.filename).slice(1) || 'bin' }
+      const buffer = await part.toBuffer()
+      const ext = path.extname(part.filename).slice(1).toLowerCase() || 'bin'
+      file = { buffer, ext }
     } else fields[part.fieldname] = String(part.value ?? '')
   }
   return { fields, file }
@@ -91,6 +93,8 @@ export async function requestRoutes(app: FastifyInstance) {
     const contentType = req.headers['content-type'] ?? ''
     if (contentType.includes('multipart/form-data')) {
       const { fields, file } = await parseMultipart(req)
+      if (file && !['pdf', 'jpg', 'jpeg', 'png'].includes(file.ext))
+        throw badRequest('ใบรับรองแพทย์ต้องเป็น PDF, JPEG หรือ PNG')
       return createLeaveRequest(auth.data.email, leaveInput(fields, file))
     }
     return createLeaveRequest(auth.data.email, leaveInput(asBody(req.body)))
@@ -102,11 +106,10 @@ export async function requestRoutes(app: FastifyInstance) {
     if (!auth) return loginRequired(reply)
     const { fields, file } = await parseMultipart(req)
     if (!file) throw badRequest('กรุณาแนบรูปภาพหลักฐาน')
+    if (!['jpg', 'jpeg', 'png', 'webp'].includes(file.ext)) throw badRequest('รูปหลักฐานต้องเป็น JPEG, PNG หรือ WebP')
     return createOffsiteRequest(auth.data.email, {
       shiftId: String(fields.shiftId ?? ''),
       taskDescription: String(fields.taskDescription ?? ''),
-      latitude: String(fields.latitude ?? ''),
-      longitude: String(fields.longitude ?? ''),
       locationName: String(fields.locationName ?? ''),
       photoBuffer: file.buffer,
       ext: file.ext,
@@ -130,7 +133,10 @@ export async function requestRoutes(app: FastifyInstance) {
     if (!auth) return loginRequired(reply)
     const file = await req.file()
     if (!file) throw badRequest('กรุณาเลือกไฟล์ใบรับรองแพทย์')
-    return uploadMedicalCertificate(auth.data.email, (req.params as { id: string }).id, await file.toBuffer(), path.extname(file.filename).slice(1))
+    const buffer = await file.toBuffer()
+    const ext = path.extname(file.filename).slice(1).toLowerCase()
+    if (!['pdf', 'jpg', 'jpeg', 'png'].includes(ext)) throw badRequest('ใบรับรองแพทย์ต้องเป็น PDF, JPEG หรือ PNG')
+    return uploadMedicalCertificate(auth.data.email, (req.params as { id: string }).id, buffer, ext)
   })
 
   app.post('/api/requests/offsite/checkout', async (req, reply) => {

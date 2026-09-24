@@ -220,8 +220,6 @@ export const offsiteRequests = pgTable(
     date: text('date').notNull(),
     taskDescription: text('task_description').notNull(),
     photoPath: text('photo_path').notNull(),
-    latitude: text('latitude').notNull(),
-    longitude: text('longitude').notNull(),
     locationName: text('location_name'),
     status: offsiteRequestStatus('status').notNull().default('pending'),
     reviewedBy: text('reviewed_by'),

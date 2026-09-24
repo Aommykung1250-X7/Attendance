@@ -18,6 +18,7 @@ export default function EmployeeDetail() {
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [replacedNote, setReplacedNote] = useState<string | null>(null)
+  const [effectiveNote, setEffectiveNote] = useState<string | null>(null)
   const [dialog, setDialog] = useState<null | 'edit' | 'add-project' | 'purge'>(null)
   const navigate = useNavigate()
 
@@ -34,7 +35,11 @@ export default function EmployeeDetail() {
 
   const afterWrite = (r: ScheduleWriteResult, message: string) => {
     setData(r.schedule)
-    setToast(message)
+    const deferredMessage = r.deferredBecauseTodayUsed
+      ? `การเปลี่ยนแปลงตารางกะเริ่มใช้วันที่ ${displayISODate(r.effectiveFrom)} เนื่องจากวันนี้มีการเช็กชื่อแล้ว`
+      : null
+    setToast(deferredMessage ? `${message} — ${deferredMessage}` : message)
+    setEffectiveNote(deferredMessage)
     setReplacedNote(
       r.replaced.length
         ? `กะเดิมที่เวลาทับกันถูกแทนที่: ${r.replaced.map((x) => `${x.projectName} วัน${WEEKDAYS[x.weekday - 1].long} ${x.startTime}–${x.endTime}`).join(', ')}`
@@ -91,6 +96,7 @@ export default function EmployeeDetail() {
           )}
         </div>
         <WeekGrid items={all} />
+        {effectiveNote && <p className="mt-3 rounded-lg bg-leave-bg px-4 py-2.5 text-sm text-leave">{effectiveNote}</p>}
         {replacedNote && <p className="mt-3 rounded-lg bg-late-bg px-4 py-2.5 text-sm text-late">{replacedNote}</p>}
         {data.assignments.length === 0 ? (
           <p className="mt-4 text-[15px] text-text-dim">ยังไม่มีกะ คนนี้จะไม่ปรากฏในบันทึกประจำวันและเช็กชื่อไม่ได้</p>
@@ -163,6 +169,11 @@ export default function EmployeeDetail() {
       <Toast message={toast} onDone={() => setToast(null)} />
     </>
   )
+}
+
+function displayISODate(value: string) {
+  const [year, month, day] = value.split('-')
+  return `${day}/${month}/${year}`
 }
 
 function AssignmentEditor({

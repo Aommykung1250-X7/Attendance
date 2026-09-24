@@ -86,7 +86,7 @@ export async function loadCurrentShifts(tx: Tx, employeeIds?: string[]): Promise
  * บันทึกผลจากแผนลงฐานข้อมูล
  * - กะที่หายไปจากแผน: ลบจริงถ้ายังไม่เคยถูกใช้ ไม่งั้นปิดด้วย valid_to
  *   ถ้าวันนี้มีการเช็กชื่อในกะนั้นแล้ว ให้กะเดิมอยู่ถึงสิ้นวันนี้ (valid_to = พรุ่งนี้)
- * - กะใหม่: ใช้ได้ตั้งแต่วันนี้ ยกเว้นทับกับกะเดิมที่ยังต้องอยู่ถึงสิ้นวันนี้ ให้เริ่มพรุ่งนี้
+ * - กะใหม่: ใช้ได้ตั้งแต่วันนี้ ยกเว้นเป็นวันเดียวกับกะของพนักงานที่ถูกใช้งานแล้ววันนี้ ให้เริ่มพรุ่งนี้
  */
 export async function reconcile(tx: Tx, before: PlanShift[], after: PlanShift[], today: string) {
   const keepIds = new Set(after.filter((s) => s.id).map((s) => s.id!))
@@ -94,6 +94,7 @@ export async function reconcile(tx: Tx, before: PlanShift[], after: PlanShift[],
   const added = after.filter((s) => !s.id)
   const tomorrow = addDays(today, 1)
   const keptToday: PlanShift[] = []
+  let deferredBecauseTodayUsed = false
 
   if (removed.length) {
     const ids = removed.map((s) => s.id!)
@@ -123,6 +124,7 @@ export async function reconcile(tx: Tx, before: PlanShift[], after: PlanShift[],
         .where(inArray(schema.shifts.id, closeToday))
     if (closeTomorrow.length)
       await tx.update(schema.shifts).set({ validTo: tomorrow }).where(inArray(schema.shifts.id, closeTomorrow))
+    deferredBecauseTodayUsed = closeTomorrow.length > 0
   }
 
   const todayWd = weekdayOf(today)
@@ -135,11 +137,16 @@ export async function reconcile(tx: Tx, before: PlanShift[], after: PlanShift[],
         startTime: s.startTime,
         endTime: s.endTime,
         validFrom:
-          s.weekday === todayWd && keptToday.some((k) => k.employeeId === s.employeeId && overlaps(k, s)) ? tomorrow : today,
+          s.weekday === todayWd && keptToday.some((k) => k.employeeId === s.employeeId) ? tomorrow : today,
       })),
     )
   }
-  return { removed: removed.length, added: added.length }
+  return {
+    removed: removed.length,
+    added: added.length,
+    effectiveFrom: deferredBecauseTodayUsed ? tomorrow : today,
+    deferredBecauseTodayUsed,
+  }
 }
 
 /** เอากะทั้งหมดของคนนี้ออกจากตารางปัจจุบัน (ใช้ตอนซ่อนพนักงาน) */
@@ -179,4 +186,3 @@ export function describeSchedule(list: ShiftEntry[]): string {
   for (const [d, r] of perDay) groups.set(r, [...(groups.get(r) ?? []), d])
   return [...groups.entries()].map(([r, days]) => `${weekdayRange(days)} ${r}`).join(' / ')
 }
-

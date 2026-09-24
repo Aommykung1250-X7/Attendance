@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { issueQrToken, verifyQrToken } from '../src/lib/qr.js'
-import { applyAssignment, describeSchedule, validateEntries, type PlanShift } from '../src/lib/schedule.js'
+import { applyAssignment, describeSchedule, reconcile, validateEntries, type PlanShift } from '../src/lib/schedule.js'
 import { selectShift, type SelShift } from '../src/lib/selection.js'
 import { computeStatus, isLate } from '../src/lib/status.js'
 import { haversineMeters, validateCheckinLocation } from '../src/lib/location.js'
@@ -252,6 +252,31 @@ describe('การเขียนตารางกะ', () => {
         { weekday: 3, startTime: '17:00', endTime: '20:00' },
       ]),
     ).toBe('จ, พ 09:30–12:00 + 17:00–20:00')
+  })
+
+  const reconcileTx = (usedToday: boolean, inserted: Record<string, unknown>[]) => ({
+    execute: async () => ({ rows: [{ shift_id: 'old', today: usedToday }] }),
+    delete: () => ({ where: async () => undefined }),
+    update: () => ({ set: () => ({ where: async () => undefined }) }),
+    insert: () => ({ values: async (rows: Record<string, unknown>[]) => { inserted.push(...rows) } }),
+  })
+
+  it('แก้กะที่ยังไม่ได้ใช้วันนี้มีผลวันนี้', async () => {
+    const inserted: Record<string, unknown>[] = []
+    const before: PlanShift[] = [{ id: 'old', employeeId: 'e1', projectId: 'p1', weekday: 1, startTime: '09:30', endTime: '18:00' }]
+    const after: PlanShift[] = [{ employeeId: 'e1', projectId: 'p1', weekday: 1, startTime: '09:30', endTime: '17:30' }]
+    const result = await reconcile(reconcileTx(false, inserted) as never, before, after, '2026-09-21')
+    expect(result).toMatchObject({ effectiveFrom: '2026-09-21', deferredBecauseTodayUsed: false })
+    expect(inserted[0]?.validFrom).toBe('2026-09-21')
+  })
+
+  it('แก้กะหลังเช็กชื่อแล้วให้กะใหม่เริ่มวันถัดไป', async () => {
+    const inserted: Record<string, unknown>[] = []
+    const before: PlanShift[] = [{ id: 'old', employeeId: 'e1', projectId: 'p1', weekday: 1, startTime: '09:30', endTime: '18:00' }]
+    const after: PlanShift[] = [{ employeeId: 'e1', projectId: 'p1', weekday: 1, startTime: '09:30', endTime: '17:30' }]
+    const result = await reconcile(reconcileTx(true, inserted) as never, before, after, '2026-09-21')
+    expect(result).toMatchObject({ effectiveFrom: '2026-09-22', deferredBecauseTodayUsed: true })
+    expect(inserted[0]?.validFrom).toBe('2026-09-22')
   })
 })
 
