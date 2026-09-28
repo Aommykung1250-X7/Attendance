@@ -60,10 +60,6 @@ export interface ShiftInstance {
   checkedOutBy: 'self' | 'admin' | 'system' | null
   leavePortion: LeaveDuration | null
   adminNote: string | null
-  /** เช็กชื่อหรือคำขอทำงานนอกสถานที่ที่อนุมัติแล้ว */
-  offsite: boolean
-  /** ทำงานที่ไหน (มีค่าเฉพาะเมื่อ offsite) */
-  offsiteNote: string | null
 }
 
 export interface KioskBoard {

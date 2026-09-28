@@ -78,10 +78,6 @@ const realApi = {
   confirmEarlyLeave: (token: string) => request<CheckInView>('POST', '/checkin/early-leave', { token }, { redirectOn401: true }),
   confirmCheckOut: (token: string) => request<CheckInView>('POST', '/checkin/checkout', { token }, { redirectOn401: true }),
 
-  // ---- ทำงานนอกสถานที่ (ไม่มี QR ล็อกอินแล้วกดยืนยันพร้อมบอกว่าทำงานที่ไหน) ----
-  offsiteView: () => request<CheckInView>('GET', '/offsite', undefined, { redirectOn401: true }),
-  confirmOffsite: (note: string) => request<CheckInView>('POST', '/offsite', { note }, { redirectOn401: true }),
-
   // ---- ผู้ใช้ ----
   me: () => get<Me>('/me'),
   logout: () => post<{ ok: true }>('/auth/logout'),

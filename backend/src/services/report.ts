@@ -39,7 +39,7 @@ export async function monthlyReport(employeeId: string, month: string): Promise<
         if (x.status === 'late') totals.late++
         if (x.status === 'leave') totals.leave++
         if (x.status === 'absent') totals.absent++
-        if (x.status === 'offsite' || x.offsite) totals.offsite = (totals.offsite ?? 0) + 1
+        if (x.status === 'offsite') totals.offsite = (totals.offsite ?? 0) + 1
         if (x.earlyLeaveAt) totals.earlyLeave++
       }
     }

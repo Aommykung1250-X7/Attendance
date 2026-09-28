@@ -159,8 +159,6 @@ export async function loadRange(
                 : 'admin'
             : null,
           leavePortion,
-          offsite: !!(a?.offsite || a?.isOffsite),
-          offsiteNote: a?.offsite ? a.offsiteNote || null : null,
           adminNote: o?.status ? o.note || null : null,
           overridden: !!overrideStatus,
           historyCount: history.get(key) ?? 0,
@@ -183,7 +181,7 @@ export async function loadDay(date: string, opts: { employeeId?: string; now?: D
   return { holiday: r.holidays.get(date) ?? null, records: r.byDate.get(date) ?? [] }
 }
 
-export function summarize(rows: { status: string; leavePortion?: string | null; offsite?: boolean }[], nowTime?: string): KioskBoard['summary'] {
+export function summarize(rows: { status: string; leavePortion?: string | null }[], nowTime?: string): KioskBoard['summary'] {
   const s: KioskBoard['summary'] = { expected: rows.length, arrived: 0, late: 0, pending: 0, leave: 0, absent: 0, offsite: 0 }
   for (const r of rows) {
     const activeHalfLeave =
@@ -194,7 +192,6 @@ export function summarize(rows: { status: string; leavePortion?: string | null; 
       s.leave++
       continue
     }
-    if (r.offsite && r.status !== 'offsite') s.offsite = (s.offsite ?? 0) + 1
     if (r.status === 'ontime') s.arrived++
     else if (r.status === 'late') {
       s.arrived++

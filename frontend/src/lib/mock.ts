@@ -123,8 +123,6 @@ interface State {
   override: ShiftStatus | null
   note: string | null
   history: AuditEntry[]
-  offsite?: boolean
-  offsiteNote?: string | null
 }
 const state = new Map<string, State>()
 // เจถูกตัดเป็น "ขาด" วันนี้ ไว้ดูแถวขาด (ชื่อแดง + ป้าย "ขาด") ในการ์ด "ยังไม่มา" บนจอ Kiosk
@@ -142,11 +140,9 @@ for (const s of shifts.filter((x) => x.employeeId === 'e11')) {
     earlyLeaveAt: null,
     checkedOutAt: null,
     recordedBy: 'self',
-    override: null,
-    note: null,
+    override: 'offsite',
+    note: 'ประชุมลูกค้า สยามพารากอน',
     history: [],
-    offsite: true,
-    offsiteNote: 'ประชุมลูกค้า สยามพารากอน',
   })
 }
 
@@ -220,8 +216,6 @@ function rowsFor(date: string, employeeId?: string): DayLogRow[] {
         checkedOutBy: st.checkedOutBy ?? null,
         leavePortion: null,
         adminNote: st.override ? st.note : null,
-        offsite: !!st.offsite,
-        offsiteNote: st.offsite ? (st.offsiteNote ?? null) : null,
         overridden: !!st.override,
         historyCount: st.history.length,
       }
@@ -232,7 +226,7 @@ function rowsFor(date: string, employeeId?: string): DayLogRow[] {
 
 function summary(rows: DayLogRow[]): KioskBoard['summary'] {
   const c = (st: ShiftStatus) => rows.filter((r) => r.status === st).length
-  return { expected: rows.length, arrived: c('ontime') + c('late'), late: c('late'), pending: c('pending'), leave: c('leave'), absent: c('absent') }
+  return { expected: rows.length, arrived: c('ontime') + c('late') + c('offsite'), late: c('late'), pending: c('pending'), leave: c('leave'), absent: c('absent'), offsite: c('offsite') }
 }
 
 const thaiFull = (date: string) =>
@@ -312,11 +306,6 @@ export const mockApi = {
   checkInView: async () => wait(demoView(demoParam()), 400),
   confirmCheckIn: async () => wait(demoView(1), 500),
   confirmEarlyLeave: async () => wait(demoView(4), 500),
-  offsiteView: async () => wait(demoView(demoParam()), 400),
-  confirmOffsite: async (note: string) => {
-    const v = demoView(1)
-    return wait(v.kind === 'done' ? { ...v, shift: { ...v.shift, offsite: true, offsiteNote: note.trim() } } : v, 500)
-  },
   confirmCheckOut: async () => wait(demoView(11), 500),
 
   me: async () => wait({ email: 'admin@example.com', name: 'แอดมิน (จำลอง)', isAdmin: true, employee: null }),

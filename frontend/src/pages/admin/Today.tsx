@@ -185,9 +185,9 @@ function Row({ row: r, onOpen }: { row: DayLogRow; onOpen: () => void }) {
         <span className="min-w-0">
           <span className="text-[16px] font-medium">{r.nickname}</span>
           {r.gen && <span className="ml-2 text-sm text-text-dim">{r.gen}</span>}
-          {r.offsite && (
-            <span className="ml-2 rounded-full border border-arrived-offsite-line bg-arrived-offsite-bg px-2 py-0.5 text-[12px] font-medium text-arrived-offsite-text" title={r.offsiteNote ?? undefined}>
-              นอกสถานที่{r.offsiteNote && ` · ${r.offsiteNote}`}
+          {r.status === 'offsite' && (
+            <span className="ml-2 rounded-full border border-arrived-offsite-line bg-arrived-offsite-bg px-2 py-0.5 text-[12px] font-medium text-arrived-offsite-text">
+              นอกสถานที่
             </span>
           )}
           <span className="mt-0.5 block truncate text-[13px] text-text-dim sm:hidden">

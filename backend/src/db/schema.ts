@@ -116,10 +116,6 @@ export const attendance = pgTable(
     earlyLeaveBy: text('early_leave_by'),
     /** 'self' หรืออีเมลของแอดมินที่กดออกงานแทน */
     checkedOutBy: text('checked_out_by'),
-    /** พนักงานแจ้งเองว่าทำงานนอกสถานที่ผ่านหน้า /offsite */
-    offsite: boolean('offsite').notNull().default(false),
-    /** สถานที่ที่พนักงานกรอกตอนเช็กชื่อ */
-    offsiteNote: text('offsite_note'),
     createdAt: createdAt(),
   },
   (t) => [

@@ -443,7 +443,7 @@ function ArrivedCard({ rows, roundOf }: { rows: ShiftInstance[]; roundOf: (r: Sh
           {rows.map((r, i) => {
             const latest = i === 0
             const late = r.status === 'late'
-            const offsite = r.offsite || r.status === 'offsite'
+            const offsite = r.status === 'offsite'
             const exitedAt = r.checkedOutAt ?? r.earlyLeaveAt
             const round = roundOf(r)
             return (
