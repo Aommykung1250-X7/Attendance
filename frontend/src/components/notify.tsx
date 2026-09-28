@@ -111,8 +111,8 @@ export function Toast({ message, tone, onDone }: { message: string | null; tone?
 // ---------------------------------------------------------------------------
 
 const TONE: Record<Tone, { icon: string; badge: string; bar: string; label: string }> = {
-  success: { icon: 'M5 12.5l4.2 4.2L19 7', badge: 'bg-ontime-bg text-ontime', bar: 'bg-ontime', label: 'สำเร็จ' },
-  error: { icon: 'M12 7.5v6M12 16.8v.2', badge: 'bg-absent-bg text-absent', bar: 'bg-absent', label: 'ผิดพลาด' },
+  success: { icon: 'M5 12.5l4.2 4.2L19 7', badge: 'bg-ontime-bg text-ontime-ink', bar: 'bg-ontime', label: 'สำเร็จ' },
+  error: { icon: 'M12 7.5v6M12 16.8v.2', badge: 'bg-absent-bg text-absent-ink', bar: 'bg-absent', label: 'ผิดพลาด' },
   info: { icon: 'M12 11v5.5M12 7.8v.2', badge: 'bg-brand-50 text-brand-text', bar: 'bg-brand', label: 'แจ้งเตือน' },
 }
 
@@ -151,7 +151,7 @@ function ToastCard({ item, onRemove }: { item: ToastItem; onRemove: () => void }
     <div
       role={item.tone === 'error' ? 'alert' : 'status'}
       className={cx(
-        'group pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-xl border border-rule bg-surface py-3 pr-2 pl-3.5 text-text shadow-[0_18px_40px_-16px_rgba(17,19,21,0.4)]',
+        'group pointer-events-auto relative flex items-start gap-3 overflow-hidden panel-modal rounded-2xl py-3 pr-2 pl-3.5 text-text',
         leaving ? 'animate-toast-out' : 'animate-toast-in',
       )}
       onAnimationEnd={(e) => e.animationName === 'toast-out' && onRemove()}
@@ -232,10 +232,10 @@ function ConfirmDialog({ opts, onDone }: { opts: Pending; onDone: (ok: boolean) 
         cancel()
       }}
       onClick={(e) => e.target === ref.current && cancel()}
-      className="m-auto w-[calc(100%-2rem)] max-w-[440px] overflow-hidden rounded-2xl border-0 bg-surface p-0 text-text shadow-[0_30px_80px_-20px_rgba(17,19,21,0.55)] backdrop:bg-ink-3/55 backdrop:backdrop-blur-[2px] open:animate-pop"
+      className="m-auto w-[calc(100%-2rem)] max-w-[440px] overflow-hidden panel-modal rounded-2xl p-0 text-text backdrop:bg-ink-3/55 open:animate-pop"
     >
       <div className="flex gap-4 px-6 pt-6 pb-5">
-        <span aria-hidden className={cx('grid size-11 shrink-0 place-items-center rounded-full', danger ? 'bg-absent-bg text-absent' : 'bg-brand-50 text-brand-text')}>
+        <span aria-hidden className={cx('grid size-11 shrink-0 place-items-center rounded-full', danger ? 'bg-absent-bg text-absent-ink' : 'bg-brand-50 text-brand-text')}>
           <svg viewBox="0 0 24 24" className="size-[22px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             {danger ? (
               <>
@@ -260,13 +260,13 @@ function ConfirmDialog({ opts, onDone }: { opts: Pending; onDone: (ok: boolean) 
             </div>
           )}
           {error && (
-            <p role="alert" className="mt-3 rounded-lg border border-absent/30 bg-absent-bg px-3 py-2 text-sm text-absent">
+            <p role="alert" className="mt-3 rounded-lg border border-absent/30 bg-absent-bg px-3 py-2 text-sm text-absent-ink">
               {error}
             </p>
           )}
         </div>
       </div>
-      <div className="flex flex-col-reverse gap-2 border-t border-rule bg-paper px-6 py-4 sm:flex-row sm:justify-end">
+      <div className="flex flex-col-reverse gap-2 border-t border-rule bg-sunken px-6 py-4 sm:flex-row sm:justify-end">
         <Button ref={cancelRef} variant="secondary" disabled={busy} onClick={cancel}>
           {opts.cancelLabel ?? 'ยกเลิก'}
         </Button>

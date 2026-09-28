@@ -3,8 +3,6 @@ import { useSearchParams } from 'react-router-dom'
 import { api, loginUrl } from '../lib/api'
 import { Button } from '../components/ui'
 import { STATUS_LABEL, type CheckInView } from '../lib/types'
-import { WEEKDAYS, todayISO } from '../lib/format'
-import mascotFront from '../assets/mascot/mascot-front.png'
 
 /**
  * หน้านี้มีอายุการใช้งานสามวินาที คนยืนอยู่หน้าจอ มือถืออยู่ในมือ
@@ -37,11 +35,13 @@ export default function CheckIn() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-[30rem] flex-col px-6 pt-10 pb-safe">
-      {!view && !error && <p className="mt-24 text-center text-text-dim">กำลังตรวจสอบ</p>}
-      {error && <Notice tone="warn" title="เกิดข้อผิดพลาด" body={error} />}
-      {view && <Body view={view} busy={busy} run={run} token={token} />}
-    </main>
+    <DonePage done={view?.kind === 'done'}>
+      <main className="mx-auto flex min-h-dvh max-w-[30rem] flex-col px-6 pt-10 pb-safe">
+        {!view && !error && <p className="mt-24 text-center text-text-dim">กำลังตรวจสอบ</p>}
+        {error && <Notice tone="warn" title="เกิดข้อผิดพลาด" body={error} />}
+        {view && <Body view={view} busy={busy} run={run} token={token} />}
+      </main>
+    </DonePage>
   )
 }
 
@@ -83,7 +83,7 @@ function Body({
           <Actions>
             <a
               href={loginUrl(`/checkin?token=${encodeURIComponent(token)}`, true)}
-              className="flex min-h-11 w-full items-center justify-center rounded-lg border border-rule-strong bg-surface px-4 text-base font-medium"
+              className="flex min-h-11 w-full items-center justify-center rounded-xl border border-rule-strong bg-surface text-text transition-[background-color,transform] duration-200 hover:-translate-y-0.5 hover:bg-sunken px-4 text-base font-medium"
             >
               เข้าสู่ระบบด้วยบัญชีอื่น
             </a>
@@ -122,7 +122,6 @@ function Body({
             end={view.shift.endTime}
             scannedAt={view.scannedAt}
           />
-          <MascotCheer nickname={view.nickname} />
           <Actions>
             <Button
               variant="primary"
@@ -144,7 +143,6 @@ function Body({
       return (
         <div className="animate-stamp">
           <Greeting nickname={view.nickname} />
-          <MascotCelebrate late={late} />
           <p
             className={`display mt-5 text-5xl leading-tight font-semibold ${late ? 'text-late' : 'text-ontime'}`}
           >
@@ -208,75 +206,34 @@ function Body({
   }
 }
 
-function Greeting({ nickname }: { nickname: string }) {
+export function Greeting({ nickname }: { nickname: string }) {
   return <p className="display text-2xl font-medium text-text-dim">สวัสดี {nickname}</p>
 }
 
-/** ชื่อวันของวันที่สแกนเข้างาน (เวลาไทย) เช่น "พฤหัสบดี" */
-function scanWeekday() {
-  const day = new Date(`${todayISO()}T00:00:00Z`).getUTCDay() || 7 // อาทิตย์ = 7 ตาม WEEKDAYS
-  return WEEKDAYS.find((w) => w.n === day)!.long
-}
-
-/** มาสคอตกลางพื้นที่ว่าง พร้อมคำทักตามวันที่สแกน */
-function MascotCheer({ nickname }: { nickname: string }) {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
-      <img src={mascotFront} alt="" draggable={false} className="animate-pop h-36 w-auto select-none" />
-      <p className="display mt-4 text-xl leading-snug font-medium">
-        สวัสดีวัน{scanWeekday()}นะ {nickname}
-        <br />
-        ตั้งใจทำงานนะ
-      </p>
-    </div>
-  )
-}
-
-/**
- * มาสคอตดีใจตอนเช็กชื่อสำเร็จ (สถานะ 'done'): เด้งฟูขึ้นครั้งเดียวพร้อมประกาย/หัวใจลอยรอบตัว
- * เล่นอัตโนมัติตอน component นี้ mount (จังหวะเดียวกับที่การ์ดทั้งใบ pop เข้ามาด้วย .animate-stamp)
- * ไม่ใช่ loop — สายมาก็ยังให้กำลังใจเบาๆ ด้วยประกายแทนหัวใจ ไม่ฉลองเหมือนมาตรงเวลาเป๊ะๆ
- */
-function MascotCelebrate({ late }: { late: boolean }) {
-  const glyphs = late ? ['✨', '💫'] : ['💛', '✨', '💛']
-  return (
-    <div className="relative mt-3 flex justify-center">
-      <img src={mascotFront} alt="" draggable={false} className="animate-mascot-happy h-28 w-auto select-none" />
-      <span className="pointer-events-none absolute inset-x-0 -top-1 flex justify-center gap-2 text-2xl" aria-hidden>
-        {glyphs.map((g, i) => (
-          <span
-            key={i}
-            className="animate-mascot-particle inline-block"
-            style={{ ['--dx' as string]: `${(i - (glyphs.length - 1) / 2) * 18}px`, animationDelay: `${i * 90}ms` }}
-          >
-            {g}
-          </span>
-        ))}
-      </span>
-    </div>
-  )
-}
-
-/** สถานที่ทำงาน: ตอนนี้มีที่เดียว จึงใส่ค่าตายตัวไว้ก่อน */
+/** สถานที่ทำงาน: ออฟฟิศมีที่เดียว จึงใส่ค่าตายตัวไว้ก่อน (ทำงานนอกสถานที่ส่ง location มาเอง) */
 const LOCATION = 'turnPRO 215 Camt'
 
-function ShiftFacts({
+export function ShiftFacts({
   project,
   start,
   end,
   scannedAt,
+  location = LOCATION,
+  scannedLabel = 'เวลาที่สแกน',
 }: {
   project: string
   start: string
   end: string
   scannedAt?: string
+  location?: string
+  scannedLabel?: string
 }) {
   const rows: [string, string][] = [
     ['โปรเจก', project],
-    ['สถานที่', LOCATION],
+    ['สถานที่', location],
     ['เวลากะ', `${start} – ${end}`],
   ]
-  if (scannedAt) rows.push(['เวลาที่สแกน', scannedAt])
+  if (scannedAt) rows.push([scannedLabel, scannedAt])
   return (
     <dl className="mt-7 border-t border-rule">
       {rows.map(([k, v]) => (
@@ -289,11 +246,18 @@ function ShiftFacts({
   )
 }
 
-function Actions({ children }: { children: React.ReactNode }) {
+/**
+ * เช็กชื่อสำเร็จแล้ว: ทั้งหน้าเป็นพื้นขาว (on-white สลับตัวหนังสือเป็นแดง สีสถานะเป็นสีเข้ม) ให้ต่างจากหน้าก่อนกดชัดๆ
+ */
+export function DonePage({ done, children }: { done: boolean; children: React.ReactNode }) {
+  return <div className={done ? 'on-white min-h-dvh bg-white text-text' : ''}>{children}</div>
+}
+
+export function Actions({ children }: { children: React.ReactNode }) {
   return <div className="mt-auto pt-10">{children}</div>
 }
 
-function Notice({ tone, title, body }: { tone: 'warn' | 'calm'; title: string; body: string }) {
+export function Notice({ tone, title, body }: { tone: 'warn' | 'calm'; title: string; body: string }) {
   return (
     <div className="mt-16">
       <p className={`display text-3xl leading-snug font-semibold ${tone === 'warn' ? 'text-absent' : 'text-text'}`}>

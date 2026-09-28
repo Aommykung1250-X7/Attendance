@@ -54,14 +54,14 @@ export default function AdminLayout() {
         {state === 'error' && <Gate title="เชื่อมต่อเซิร์ฟเวอร์ไม่ได้" body="ลองรีเฟรชหน้านี้อีกครั้ง" />}
         {state === 'login' && (
           <Gate title="หน้าแอดมิน" body="เข้าสู่ระบบด้วยบัญชี Google ที่ถูกกำหนดเป็นแอดมิน">
-            <a href={loginUrl()} className="flex min-h-12 items-center justify-center gap-3 rounded-lg bg-ink px-5 text-base font-medium text-chalk hover:bg-ink-3">
+            <a href={loginUrl()} className="flex min-h-12 items-center justify-center gap-3 rounded-xl bg-brand px-5 text-base font-medium text-on-brand shadow-[0_6px_18px_-8px_rgba(120,20,0,0.55)] transition-[background-color,transform] duration-200 hover:-translate-y-0.5 hover:bg-brand-strong">
               <GoogleMark /> เข้าสู่ระบบด้วย Google
             </a>
           </Gate>
         )}
         {state === 'forbidden' && (
           <Gate title="บัญชีนี้ไม่มีสิทธิ์แอดมิน" body={`${me?.email} ไม่ได้ถูกกำหนดเป็นแอดมิน ถ้าคิดว่าผิด ให้คนดูแลระบบเพิ่มอีเมลนี้ใน ADMIN_EMAILS`}>
-            <a href={loginUrl(location.pathname, true)} className="flex min-h-11 items-center justify-center rounded-lg border border-rule-strong bg-surface px-4 font-medium">
+            <a href={loginUrl(location.pathname, true)} className="flex min-h-11 items-center justify-center rounded-xl border border-rule-strong bg-surface px-4 font-medium text-text transition-[background-color,transform] duration-200 hover:-translate-y-0.5 hover:bg-sunken">
               เข้าสู่ระบบด้วยบัญชีอื่น
             </a>
           </Gate>
@@ -77,8 +77,8 @@ export default function AdminLayout() {
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[248px_minmax(0,1fr)]">
-      {/* แถบเมนู: ด้านข้างบนจอใหญ่ ด้านบนบนมือถือ */}
-      <aside className="theme-ink sticky top-0 z-30 bg-ink text-chalk lg:h-dvh">
+      {/* แถบเมนูพื้นขาว ติดบนตอนเลื่อน: ด้านข้างบนจอใหญ่ ด้านบนบนมือถือ */}
+      <aside className="panel sticky top-0 z-30 rounded-none border-x-0 border-t-0 lg:h-dvh lg:border-r lg:border-b-0">
         <div className="flex h-full flex-col">
           <div className="flex items-center justify-between px-5 pt-4 pb-3 lg:px-6 lg:pt-7 lg:pb-6">
             <div>
@@ -86,9 +86,9 @@ export default function AdminLayout() {
                 <span aria-hidden className="size-2.5 rounded-full bg-brand" />
                 เช็กชื่อเข้างาน
               </p>
-              <p className="text-[13px] text-chalk-dim">ฝั่งแอดมิน{USE_MOCK && ' · ข้อมูลจำลอง'}</p>
+              <p className="text-[13px] text-text-dim">ฝั่งแอดมิน{USE_MOCK && ' · ข้อมูลจำลอง'}</p>
             </div>
-            <button onClick={logout} className="rounded-md px-2 py-1.5 text-[13px] text-chalk-dim hover:text-chalk lg:hidden">
+            <button onClick={logout} className="rounded-md px-2 py-1.5 text-[13px] text-text-dim hover:text-text lg:hidden">
               ออกจากระบบ
             </button>
           </div>
@@ -100,8 +100,9 @@ export default function AdminLayout() {
                 end={n.end}
                 className={({ isActive }) =>
                   cx(
-                    'flex min-h-10 shrink-0 items-center gap-3 rounded-lg px-3 text-[15px] transition-colors',
-                    isActive ? 'bg-brand font-medium text-on-brand' : 'text-chalk-dim hover:bg-chalk/6 hover:text-chalk',
+                    'flex min-h-10 shrink-0 items-center gap-3 rounded-xl px-3 text-[15px] transition-colors',
+                    // หน้าที่เปิดอยู่: แคปซูลแดง ตัวหนังสือขาว
+                    isActive ? 'bg-brand font-medium text-on-brand' : 'text-text-dim hover:bg-sunken hover:text-text',
                   )
                 }
               >
@@ -115,17 +116,17 @@ export default function AdminLayout() {
               href={displayUrl}
               target="_blank"
               rel="noreferrer"
-              className="mx-3 mt-4 hidden min-h-10 items-center gap-3 rounded-lg border border-ink-rule px-3 text-[15px] text-chalk-dim hover:text-chalk lg:flex"
+              className="mx-3 mt-4 hidden min-h-10 items-center gap-3 rounded-lg border border-rule-strong px-3 text-[15px] text-text-dim hover:bg-sunken hover:text-text lg:flex"
             >
               <Icon d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2" />
               เปิดหน้าจอ QR ↗
             </a>
           )}
-          <div className="mt-auto hidden border-t border-ink-rule px-6 py-5 lg:block">
-            <p className="truncate text-[13px] text-chalk-dim" title={me?.email}>
+          <div className="mt-auto hidden border-t border-rule px-6 py-5 lg:block">
+            <p className="truncate text-[13px] text-text-dim" title={me?.email}>
               {me?.email}
             </p>
-            <button onClick={logout} className="mt-1 text-[13px] text-chalk-dim underline-offset-4 hover:text-chalk hover:underline">
+            <button onClick={logout} className="mt-1 text-[13px] text-text-dim underline-offset-4 hover:text-text hover:underline">
               ออกจากระบบ
             </button>
           </div>

@@ -11,12 +11,15 @@ export { cx }
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'danger-solid'
 
 const VARIANT: Record<Variant, string> = {
-  primary: 'bg-brand text-on-brand hover:bg-brand-strong disabled:bg-brand-100 disabled:text-ink-rule',
-  secondary: 'bg-surface text-text border border-rule-strong hover:bg-sunken disabled:text-text-dim',
+  // ปุ่มหลัก: แดงทึบ ตัวหนังสือขาว เด่นทั้งบนพื้นดำและในการ์ดขาว
+  primary:
+    'bg-brand text-on-brand shadow-[0_6px_18px_-8px_rgba(176,18,10,0.6)] hover:-translate-y-0.5 hover:bg-brand-strong disabled:bg-brand-100 disabled:text-brand-300 disabled:shadow-none',
+  // ปุ่มรอง: พื้นขาว ขอบแดงอ่อน ตัวหนังสือแดง
+  secondary: 'bg-surface text-text border border-rule-strong hover:-translate-y-0.5 hover:bg-sunken disabled:text-text-dim',
   ghost: 'text-text-dim hover:bg-sunken hover:text-text',
   // ปุ่มอันตรายแบบเส้นขอบ วางรองจากปุ่มหลักได้โดยไม่แย่งความเด่น
-  danger: 'border border-absent/40 text-absent bg-transparent hover:bg-absent-bg disabled:opacity-50',
-  'danger-solid': 'bg-absent text-white hover:bg-absent/90 disabled:bg-absent/40',
+  danger: 'border border-absent/50 text-absent bg-transparent hover:bg-sunken disabled:opacity-50',
+  'danger-solid': 'bg-absent-ink text-white hover:-translate-y-0.5 hover:bg-absent-ink/90 disabled:bg-absent-ink/40',
 }
 
 export function Button({
@@ -30,7 +33,7 @@ export function Button({
     <button
       type={type}
       className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-lg font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed',
+        'inline-flex items-center justify-center gap-2 rounded-xl font-medium whitespace-nowrap transition-[background-color,color,transform,box-shadow] duration-200 disabled:translate-y-0 disabled:cursor-not-allowed',
         size === 'md' ? 'min-h-11 px-4 text-[15px]' : 'min-h-9 px-3 text-sm',
         VARIANT[variant],
         className,
@@ -55,7 +58,7 @@ export function Field({ label, hint, error, children }: { label: string; hint?: 
 }
 
 const inputCls =
-  'min-h-11 w-full rounded-lg border border-rule-strong bg-surface px-3 text-[15px] text-text placeholder:text-text-dim/60 focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/20 disabled:bg-sunken'
+  'min-h-11 w-full rounded-xl border border-rule-strong bg-surface px-3 text-[15px] text-text placeholder:text-text-dim/60 focus:border-focus focus:outline-none focus:ring-2 focus:ring-focus/20 disabled:bg-sunken'
 
 export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cx(inputCls, className)} {...rest} />
@@ -68,7 +71,7 @@ export function Select({ className, children, ...rest }: SelectHTMLAttributes<HT
     </select>
   )
 }
-const CHEVRON = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%235e6776' stroke-width='1.6'/%3E%3C/svg%3E")`
+const CHEVRON = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23b0120a' stroke-width='1.6'/%3E%3C/svg%3E")`
 
 export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea className={cx(inputCls, 'min-h-20 py-2.5 leading-relaxed', className)} {...rest} />
@@ -77,7 +80,7 @@ export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLText
 export function Checkbox({ label, className, ...rest }: InputHTMLAttributes<HTMLInputElement> & { label: ReactNode }) {
   return (
     <label className={cx('inline-flex min-h-11 cursor-pointer items-center gap-2.5 text-[15px] select-none', className)}>
-      <input type="checkbox" className="size-4.5 accent-ink" {...rest} />
+      <input type="checkbox" className="size-4.5 accent-brand" {...rest} />
       {label}
     </label>
   )
@@ -112,7 +115,7 @@ export function Dialog({
       onClose={onClose}
       onClick={(e) => e.target === ref.current && onClose()}
       className={cx(
-        'm-auto max-h-[92dvh] w-[calc(100%-1.5rem)] rounded-2xl bg-surface p-0 text-text shadow-2xl backdrop:bg-ink-3/55 backdrop:backdrop-blur-[2px] open:animate-pop',
+        'm-auto max-h-[92dvh] w-[calc(100%-1.5rem)] panel-modal rounded-2xl p-0 text-text backdrop:bg-ink-3/55 open:animate-pop',
         wide ? 'max-w-2xl' : 'max-w-md',
       )}
     >
@@ -147,7 +150,7 @@ export function PageHeader({ title, sub, actions }: { title: ReactNode; sub?: Re
 }
 
 export function Card({ className, children }: { className?: string; children: ReactNode }) {
-  return <section className={cx('rounded-xl border border-rule bg-surface', className)}>{children}</section>
+  return <section className={cx('panel rounded-2xl', className)}>{children}</section>
 }
 
 export function Loading({ label = 'กำลังโหลด' }: { label?: string }) {
@@ -160,7 +163,7 @@ export function Loading({ label = 'กำลังโหลด' }: { label?: str
 
 export function ErrorNote({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-absent/30 bg-absent-bg px-4 py-3 text-[15px] text-absent">
+    <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-absent/30 bg-absent-bg px-4 py-3 text-[15px] text-absent-ink">
       <span className="whitespace-pre-line">{message}</span>
       {onRetry && (
         <Button size="sm" variant="secondary" onClick={onRetry}>

@@ -56,7 +56,7 @@ export function EmployeeForm({ value, onChange }: { value: EmployeeInput; onChan
               onClick={() => set({ type: t })}
               className={cx(
                 'min-h-11 flex-1 rounded-lg border px-3 text-[15px] transition-colors',
-                value.type === t ? 'border-ink bg-ink text-chalk' : 'border-rule-strong bg-surface hover:bg-sunken',
+                value.type === t ? 'border-brand bg-brand text-on-brand' : 'border-rule-strong bg-surface hover:bg-sunken',
               )}
             >
               {t === 'staff' ? 'ประจำ' : 'นักศึกษา'}

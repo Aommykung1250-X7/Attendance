@@ -590,3 +590,54 @@ describe('วันหยุดและตั้งค่า', () => {
     expect(rep.totals.late).toBe(0)
   })
 })
+
+describe('ทำงานนอกสถานที่ (พนักงานแจ้งเองที่หน้า /offsite ไม่ต้องสแกน QR)', () => {
+  const may = new Client()
+
+  it('ยังไม่ล็อกอิน → 401 พร้อมลิงก์ Google ที่กลับมาหน้า /offsite', async () => {
+    const e = await admin.json('POST', '/api/employees', { nickname: 'เมย์', gen: '', email: 'may@gmail.com', type: 'staff', position: 'Sales' })
+    ids.may = e.body.id
+    const assigned = await admin.json('POST', `/api/projects/${turnpro}/assign`, {
+      employeeId: ids.may,
+      shifts: [{ weekday: 5, startTime: '13:00', endTime: '17:00' }],
+    })
+    expect(assigned.status).toBe(200)
+
+    at('13:05:00')
+    const r = await new Client().get('/api/offsite')
+    expect(r.statusCode).toBe(401)
+    expect(r.json().loginUrl).toBe(`/api/auth/google?next=${encodeURIComponent('/offsite')}`)
+  })
+
+  it('ต้องกรอกว่าทำงานที่ไหน แล้วบันทึกเวลาที่กด สถานะคิดปกติ/สายตามเวลา', async () => {
+    await may.login('may@gmail.com')
+    expect((await may.json('GET', '/api/offsite')).body).toMatchObject({ kind: 'ready', shift: { startTime: '13:00' } })
+    expect((await may.json('POST', '/api/offsite', { note: '   ' })).status).toBe(400)
+    expect((await may.json('POST', '/api/offsite', { note: 'x'.repeat(201) })).status).toBe(400)
+
+    const done = (await may.json('POST', '/api/offsite', { note: '  ลูกค้า บริษัทเอ  ' })).body
+    expect(done).toMatchObject({ kind: 'done', status: 'late' })
+    expect(done.shift).toMatchObject({ scannedAt: '13:05:00', offsite: true, offsiteNote: 'ลูกค้า บริษัทเอ', recordedBy: 'self' })
+  })
+
+  it('แจ้งซ้ำไม่บันทึกซ้ำ และจอกับบันทึกประจำวันเห็นว่าเป็นนอกสถานที่', async () => {
+    at('13:10:00')
+    expect((await may.json('POST', '/api/offsite', { note: 'ที่อื่น' })).body.kind).toBe('early_leave')
+
+    const key = (await admin.json('GET', '/api/settings')).body.displayKey
+    const board = (await new Client().json('GET', `/api/board/${key}`)).body
+    expect(board.today.find((r: { nickname: string }) => r.nickname === 'เมย์')).toMatchObject({ offsite: true, offsiteNote: 'ลูกค้า บริษัทเอ' })
+
+    const day = (await admin.json('GET', '/api/admin/day?date=2026-09-11')).body
+    const row = day.rows.find((r: { nickname: string }) => r.nickname === 'เมย์')
+    expect(row).toMatchObject({ offsite: true, status: 'late', scannedAt: '13:05:00' })
+    // แถวที่สแกนที่ออฟฟิศไม่ถูกนับเป็นนอกสถานที่
+    expect(day.rows.find((r: { nickname: string }) => r.nickname === 'ต้น')).toMatchObject({ offsite: false, offsiteNote: null })
+  })
+
+  it('บัญชีที่ไม่อยู่ในรายชื่อ → not_registered', async () => {
+    const stranger = new Client()
+    await stranger.login('nobody@gmail.com')
+    expect((await stranger.json('GET', '/api/offsite')).body).toEqual({ kind: 'not_registered', email: 'nobody@gmail.com' })
+  })
+})

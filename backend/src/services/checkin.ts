@@ -93,6 +93,46 @@ export async function confirmCheckIn(employee: EmployeeRow, scannedAt: Date): Pr
   }
 }
 
+/** ยาวสุดของข้อความ "ทำงานที่ไหน" */
+export const OFFSITE_NOTE_MAX = 200
+
+/**
+ * เช็กชื่อแบบทำงานนอกสถานที่ (หน้า /offsite): พนักงานแจ้งเองโดยไม่ต้องสแกน QR ที่ออฟฟิศ
+ * ใช้เวลาที่กดเป็นเวลาเข้างาน สถานะยังคิดปกติ/สายเหมือนการสแกน และบันทึกว่าทำงานที่ไหน
+ * กฎเลือกกะเหมือนการสแกนทุกอย่าง (buildView) จึงเช็กซ้ำ เช็กล่วงหน้า หรือเช็กกะที่จบไปแล้วไม่ได้
+ */
+export async function confirmOffsite(employee: EmployeeRow, at: Date, note: string): Promise<{ view: CheckInView; acted: boolean }> {
+  const current = await buildView(employee, at)
+  if (current.view.kind !== 'ready' || !current.record) return { view: current.view, acted: false }
+  const shift = current.record.shift
+
+  await db
+    .insert(schema.attendance)
+    .values({
+      employeeId: employee.id,
+      shiftId: shift.id,
+      date: current.date,
+      scannedAt: at,
+      recordedBy: 'self',
+      offsite: true,
+      offsiteNote: note.trim().slice(0, OFFSITE_NOTE_MAX),
+    })
+    .onConflictDoNothing()
+
+  const { records } = await loadDay(current.date, { employeeId: employee.id })
+  const r = records.find((x) => x.shift.id === shift.id)!
+  const scanned = r.attendance?.scannedAt ?? at
+  return {
+    view: {
+      kind: 'done',
+      nickname: employee.nickname,
+      shift: r.row,
+      status: isLate(scanned, current.date, shift.startTime) ? 'late' : 'ontime',
+    },
+    acted: true,
+  }
+}
+
 /** แจ้งกลับก่อนเวลา เมื่อยืนยันแล้วกะนั้นถือว่าจบ สแกนกลับเข้ามาใหม่ไม่ได้ แก้ได้เฉพาะแอดมิน */
 export async function confirmEarlyLeave(employee: EmployeeRow, scannedAt: Date): Promise<{ view: CheckInView; acted: boolean }> {
   const current = await buildView(employee, scannedAt)

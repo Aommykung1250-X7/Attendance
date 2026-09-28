@@ -56,6 +56,10 @@ export interface ShiftInstance {
   status: ShiftStatus
   recordedBy: 'self' | 'admin' | null
   adminNote: string | null
+  /** พนักงานแจ้งเองว่าทำงานนอกสถานที่ (เช็กชื่อผ่านหน้า /offsite) สถานะยังเป็นปกติ/สายตามเวลาที่แจ้ง */
+  offsite: boolean
+  /** ทำงานที่ไหน (มีค่าเฉพาะเมื่อ offsite) */
+  offsiteNote: string | null
 }
 
 export interface KioskBoard {

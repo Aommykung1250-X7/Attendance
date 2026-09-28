@@ -9,11 +9,11 @@ const TEXT: Record<ShiftStatus, string> = {
 }
 
 const PILL: Record<ShiftStatus, string> = {
-  ontime: 'bg-ontime-bg text-ontime',
-  late: 'bg-late-bg text-late',
-  absent: 'bg-absent-bg text-absent',
-  leave: 'bg-leave-bg text-leave',
-  pending: 'bg-pending-bg text-pending',
+  ontime: 'bg-ontime-bg text-ontime-ink',
+  late: 'bg-late-bg text-late-ink',
+  absent: 'bg-absent-bg text-absent-ink',
+  leave: 'bg-leave-bg text-leave-ink',
+  pending: 'bg-pending-bg text-pending-ink',
 }
 
 const DOT: Record<ShiftStatus, string> = {
@@ -24,7 +24,7 @@ const DOT: Record<ShiftStatus, string> = {
   pending: 'bg-transparent ring-[1.5px] ring-pending ring-inset',
 }
 
-/** สถานะแบบข้อความมีจุดนำหน้า ใช้บนจอติดผนัง (สีเปลี่ยนตามพื้นหลังผ่าน .theme-ink) */
+/** สถานะแบบข้อความมีจุดนำหน้า ใช้บนจอติดผนัง (ตัวหนังสือสีอ่อนสำหรับพื้นกระจก) */
 export function StatusText({ status }: { status: ShiftStatus }) {
   return (
     <span className={`inline-flex items-center gap-2 text-[clamp(1.05rem,1.35vw,1.5rem)] font-medium ${TEXT[status]}`}>

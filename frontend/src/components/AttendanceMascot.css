@@ -363,9 +363,10 @@
   transform: translateX(-50%);
   white-space: nowrap;
   border-radius: 999px;
-  border: 1px solid var(--color-rule, #f2e4c4);
-  background: var(--color-surface, #fff);
-  color: var(--color-brand-text, #3a6bb0);
+  /* ลูกโป่งขาวทึบ ตัวหนังสือแดง อ่านชัดทั้งบนพื้นดำและบนการ์ดขาว */
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--color-on-white, #b0120a);
   font-weight: 600;
   font-size: clamp(10px, 1.3vh, 13px);
   padding: 0.35em 0.85em;
@@ -381,12 +382,12 @@
   transform: translateX(-50%);
   white-space: nowrap;
   border-radius: 999px;
-  background: var(--color-brand, #95bbea);
+  background: var(--color-brand, #b0120a);
   color: #fff;
   font-weight: 700;
   font-size: clamp(10px, 1.35vh, 13px);
   padding: 0.35em 0.9em;
-  box-shadow: 0 8px 18px -8px rgba(58, 108, 180, 0.55);
+  box-shadow: 0 8px 18px -8px rgba(176, 18, 10, 0.55);
   animation: am-pop-fade 1.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 

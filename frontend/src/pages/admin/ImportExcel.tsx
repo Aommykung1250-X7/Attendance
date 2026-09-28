@@ -54,7 +54,7 @@ export default function ImportExcel() {
         title="นำเข้าตารางจาก Excel"
         sub="ใช้ตอนเริ่มเทอมใหม่หรือเพิ่มนักศึกษารุ่นใหม่ ระบบจะแสดงสรุปให้ตรวจก่อนบันทึกจริงเสมอ"
         actions={
-          <a href={api.templateUrl} download className="inline-flex min-h-11 items-center rounded-lg border border-rule-strong bg-surface px-4 text-[15px] font-medium hover:bg-sunken">
+          <a href={api.templateUrl} download className="inline-flex min-h-11 items-center rounded-xl border border-rule-strong bg-surface text-text transition-[background-color,transform] duration-200 hover:-translate-y-0.5 hover:bg-sunken px-4 text-[15px] font-medium hover:bg-sunken">
             ดาวน์โหลดไฟล์ตัวอย่าง
           </a>
         }
@@ -81,7 +81,7 @@ export default function ImportExcel() {
             }}
             className={cx(
               'flex min-h-60 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors',
-              drag ? 'border-ink bg-sunken' : 'border-rule-strong bg-surface hover:bg-sunken/50',
+              drag ? 'border-brand bg-sunken' : 'border-rule-strong bg-surface hover:bg-sunken/50',
             )}
           >
             <input ref={input} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" onChange={(e) => upload(e.target.files?.[0])} disabled={stage.kind === 'checking'} />
@@ -179,14 +179,14 @@ function Summary({ p, name, busy, onConfirm, onCancel }: { p: ImportPreview; nam
         <p className="mt-1 text-[15px] text-text-dim">
           {name} ผ่านการตรวจทุกแถว{p.unchangedCount ? ` · ${p.unchangedCount} แถวไม่มีอะไรเปลี่ยน` : ''}
         </p>
-        <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-px overflow-hidden rounded-lg border border-rule bg-rule text-center">
+        <div className="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-px overflow-hidden rounded-lg border border-rule text-center">
           {[
             ['โปรเจกต์ใหม่', p.newProjects?.length ?? 0],
             ['คนใหม่', p.newEmployees.length],
             ['คนเดิมได้โปรเจกเพิ่ม', p.newAssignments.length],
             ['คนเดิมเวลาเปลี่ยน', p.changedShifts.length],
           ].map(([l, n]) => (
-            <div key={l as string} className="bg-surface px-3 py-4">
+            <div key={l as string} className="bg-white/45 px-3 py-4">
               <p className="display tnum text-3xl font-semibold">{n}</p>
               <p className="mt-1 text-[13px] text-text-dim">{l}</p>
             </div>
@@ -248,7 +248,7 @@ function Summary({ p, name, busy, onConfirm, onCancel }: { p: ImportPreview; nam
         </Section>
       )}
 
-      <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-rule bg-paper/95 px-4 py-4 backdrop-blur sm:mx-0 sm:rounded-xl sm:border sm:px-5">
+      <div className="sticky bottom-0 -mx-4 flex flex-wrap justify-end gap-2 border-t border-rule panel px-4 py-4 sm:mx-0 sm:rounded-xl sm:border sm:px-5">
         <Button variant="ghost" onClick={onCancel} disabled={busy}>
           ยกเลิก
         </Button>

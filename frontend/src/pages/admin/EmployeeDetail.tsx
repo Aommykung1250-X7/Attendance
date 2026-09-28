@@ -67,7 +67,7 @@ export default function EmployeeDetail() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Link to={`/admin/report?employee=${e.id}`} className="inline-flex min-h-11 items-center rounded-lg border border-rule-strong bg-surface px-4 text-[15px] font-medium hover:bg-sunken">
+          <Link to={`/admin/report?employee=${e.id}`} className="inline-flex min-h-11 items-center rounded-xl border border-rule-strong bg-surface text-text transition-[background-color,transform] duration-200 hover:-translate-y-0.5 hover:bg-sunken px-4 text-[15px] font-medium hover:bg-sunken">
             ดูรายงาน
           </Link>
           <Button onClick={() => setDialog('edit')}>แก้ข้อมูล</Button>
@@ -75,7 +75,7 @@ export default function EmployeeDetail() {
       </div>
 
       {params.get('new') && data.assignments.length === 0 && (
-        <p className="mb-5 rounded-lg bg-leave-bg px-4 py-3 text-[15px] text-leave">เพิ่ม {displayName(e)} แล้ว ขั้นต่อไปคือเพิ่มเข้าโปรเจกและกำหนดวันเวลาที่มา ไม่งั้นระบบจะถือว่าไม่มีตารางงาน</p>
+        <p className="mb-5 rounded-lg bg-leave-bg px-4 py-3 text-[15px] text-leave-ink">เพิ่ม {displayName(e)} แล้ว ขั้นต่อไปคือเพิ่มเข้าโปรเจกและกำหนดวันเวลาที่มา ไม่งั้นระบบจะถือว่าไม่มีตารางงาน</p>
       )}
 
       <Card className="p-5">
@@ -91,7 +91,7 @@ export default function EmployeeDetail() {
           )}
         </div>
         <WeekGrid items={all} />
-        {replacedNote && <p className="mt-3 rounded-lg bg-late-bg px-4 py-2.5 text-sm text-late">{replacedNote}</p>}
+        {replacedNote && <p className="mt-3 rounded-lg bg-late-bg px-4 py-2.5 text-sm text-late-ink">{replacedNote}</p>}
         {data.assignments.length === 0 ? (
           <p className="mt-4 text-[15px] text-text-dim">ยังไม่มีกะ คนนี้จะไม่ปรากฏในบันทึกประจำวันและเช็กชื่อไม่ได้</p>
         ) : (

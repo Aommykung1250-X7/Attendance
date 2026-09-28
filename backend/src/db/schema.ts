@@ -102,6 +102,10 @@ export const attendance = pgTable(
     recordedBy: text('recorded_by').notNull(),
     /** 'self' หรืออีเมลของแอดมินที่กดแจ้งกลับก่อนแทน */
     earlyLeaveBy: text('early_leave_by'),
+    /** พนักงานแจ้งเองว่าทำงานนอกสถานที่ (เช็กชื่อผ่านหน้า /offsite ไม่ได้สแกน QR ที่ออฟฟิศ) */
+    offsite: boolean('offsite').notNull().default(false),
+    /** ทำงานที่ไหน พนักงานกรอกเองตอนแจ้ง */
+    offsiteNote: text('offsite_note'),
     createdAt: createdAt(),
   },
   (t) => [

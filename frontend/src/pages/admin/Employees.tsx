@@ -55,7 +55,7 @@ export default function Employees() {
         <Input placeholder="ค้นหาชื่อ อีเมล หรือ Gen" value={search} onChange={(e) => setSearch(e.target.value)} className="min-h-10 max-w-xs text-sm" />
         <div className="flex rounded-lg border border-rule-strong bg-surface p-0.5">
           {(['all', 'staff', 'student'] as const).map((t) => (
-            <button key={t} onClick={() => setType(t)} aria-pressed={type === t} className={cx('min-h-9 rounded-md px-3 text-sm', type === t ? 'bg-ink text-chalk' : 'text-text-dim hover:text-text')}>
+            <button key={t} onClick={() => setType(t)} aria-pressed={type === t} className={cx('min-h-9 rounded-md px-3 text-sm', type === t ? 'bg-brand text-on-brand' : 'text-text-dim hover:text-text')}>
               {t === 'all' ? 'ทั้งหมด' : typeLabel(t)}
             </button>
           ))}
@@ -91,7 +91,7 @@ export default function Employees() {
                         {e.gen && <span className="ml-2 text-sm text-text-dim">{e.gen}</span>}
                         {!e.isActive && <span className="ml-2 rounded bg-sunken px-1.5 py-0.5 text-[12px]">ถูกซ่อน</span>}
                         {!e.email && (
-                          <span className="ml-2 rounded bg-late-bg px-1.5 py-0.5 text-[12px] text-late" title="ยังไม่ได้กรอกอีเมล คนนี้สแกน QR เช็กชื่อเองไม่ได้">
+                          <span className="ml-2 rounded bg-late-bg px-1.5 py-0.5 text-[12px] text-late-ink" title="ยังไม่ได้กรอกอีเมล คนนี้สแกน QR เช็กชื่อเองไม่ได้">
                             ยังไม่มีอีเมล
                           </span>
                         )}

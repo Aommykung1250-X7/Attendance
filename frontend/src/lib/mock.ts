@@ -41,12 +41,15 @@ const employees: Employee[] = [
   ['e7', 'มิว', 'Gen 8', 'student', ''],
   ['e8', 'ฟ้า', 'Gen 7', 'student', ''],
   ['e9', 'กาย', 'Gen 8', 'student', ''],
+  ['e10', 'เจ', null, 'staff', 'Developer'],
+  ['e11', 'พลอย', null, 'staff', 'Sales'],
+  ['e12', 'มายด์', 'Gen 8', 'student', ''],
 ].map(([id, nickname, gen, type, position], i) => ({
   id: id!,
   nickname: nickname!,
   gen,
-  // สองคนสุดท้ายนำเข้ามาโดยยังไม่กรอกอีเมล ไว้ดูป้าย "ยังไม่มีอีเมล"
-  email: i >= 7 ? null : `demo${i + 1}@example.com`,
+  // ฟ้ากับกายนำเข้ามาโดยยังไม่กรอกอีเมล ไว้ดูป้าย "ยังไม่มีอีเมล"
+  email: i === 7 || i === 8 ? null : `demo${i + 1}@example.com`,
   type: type as Employee['type'],
   position: position ?? '',
   isActive: true,
@@ -67,6 +70,9 @@ setShifts('e6', 'p2', wk([1, 2, 3, 4, 5, 6, 7], '09:30', '12:00'))
 setShifts('e7', 'p3', wk([1, 2, 3, 4, 5, 6, 7], '13:00', '17:00'))
 setShifts('e8', 'p3', wk([1, 3, 5, 6, 7], '13:00', '17:00'))
 setShifts('e9', 'p2', wk([2, 4, 6, 7], '09:30', '12:00'))
+setShifts('e10', 'p1', wk([1, 2, 3, 4, 5, 6, 7], '09:00', '18:00'))
+setShifts('e11', 'p1', wk([1, 2, 3, 4, 5, 6, 7], '09:00', '18:00'))
+setShifts('e12', 'p3', wk([1, 2, 3, 4, 5, 6, 7], '13:00', '17:00'))
 
 const holidays: Holiday[] = [{ date: '2026-10-13', name: 'วันคล้ายวันสวรรคต ร.9' }]
 const settings = { displayKey: 'demo', displayUrl: `${location.origin}/display/demo`, qrTokenTtl: 30 }
@@ -78,8 +84,31 @@ interface State {
   override: ShiftStatus | null
   note: string | null
   history: AuditEntry[]
+  offsite?: boolean
+  offsiteNote?: string | null
 }
 const state = new Map<string, State>()
+// เจถูกตัดเป็น "ขาด" วันนี้ ไว้ดูแถวขาด (ชื่อแดง + ป้าย "ขาด") ในการ์ด "ยังไม่มา" บนจอ Kiosk
+for (const s of shifts.filter((x) => x.employeeId === 'e10')) {
+  state.set(`${s.id}|${todayISO()}`, { scannedAt: null, earlyLeaveAt: null, recordedBy: null, override: 'absent', note: 'ไม่มาและติดต่อไม่ได้', history: [] })
+}
+// มายด์ลาวันนี้ ไว้ดูการ์ด "ลา" บนจอ Kiosk
+for (const s of shifts.filter((x) => x.employeeId === 'e12')) {
+  state.set(`${s.id}|${todayISO()}`, { scannedAt: null, earlyLeaveAt: null, recordedBy: null, override: 'leave', note: 'ลาป่วย', history: [] })
+}
+// พลอยแจ้งทำงานนอกสถานที่วันนี้ ไว้ดูแถวสีม่วงในการ์ด "มาแล้ว" บนจอ Kiosk
+for (const s of shifts.filter((x) => x.employeeId === 'e11')) {
+  state.set(`${s.id}|${todayISO()}`, {
+    scannedAt: '08:52:10',
+    earlyLeaveAt: null,
+    recordedBy: 'self',
+    override: null,
+    note: null,
+    history: [],
+    offsite: true,
+    offsiteNote: 'ประชุมลูกค้า สยามพารากอน',
+  })
+}
 
 const weekdayOf = (date: string) => {
   const d = new Date(`${date}T00:00:00Z`).getUTCDay()
@@ -148,6 +177,8 @@ function rowsFor(date: string, employeeId?: string): DayLogRow[] {
         status: statusOf(s, date, st),
         recordedBy: st.recordedBy,
         adminNote: st.override ? st.note : null,
+        offsite: !!st.offsite,
+        offsiteNote: st.offsite ? (st.offsiteNote ?? null) : null,
         overridden: !!st.override,
         historyCount: st.history.length,
       } satisfies DayLogRow
@@ -234,6 +265,11 @@ export const mockApi: Api = {
   checkInView: async () => wait(demoView(demoParam()), 400),
   confirmCheckIn: async () => wait(demoView(1), 500),
   confirmEarlyLeave: async () => wait(demoView(4), 500),
+  offsiteView: async () => wait(demoView(demoParam()), 400),
+  confirmOffsite: async (note: string) => {
+    const v = demoView(1)
+    return wait(v.kind === 'done' ? { ...v, shift: { ...v.shift, offsite: true, offsiteNote: note.trim() } } : v, 500)
+  },
 
   me: async () => wait({ email: 'admin@example.com', name: 'แอดมิน (จำลอง)', isAdmin: true, employee: null }),
   logout: async () => wait({ ok: true as const }),

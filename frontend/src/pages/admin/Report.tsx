@@ -110,7 +110,7 @@ export default function Report() {
             <span className="text-[15px] text-text-dim">{monthLabel(report.month)}</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-rule bg-rule sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-px overflow-hidden panel bg-rule rounded-2xl sm:grid-cols-5">
             <Total label="มาทำงาน" focus="present" current={focus} setFocus={setFocus}>
               {report.totals.present}
               <span className="text-lg font-medium text-text-dim"> / {report.totals.workdays} วัน</span>
@@ -173,7 +173,7 @@ function Total({
     <button
       onClick={() => setFocus(active ? 'all' : focus)}
       aria-pressed={active}
-      className={cx('bg-surface px-5 py-4 text-left transition-colors hover:bg-sunken', active && 'bg-sunken shadow-[inset_0_-3px_0_var(--color-brand)]')}
+      className={cx('bg-white/45 px-5 py-4 text-left transition-colors hover:bg-sunken', active && 'bg-sunken shadow-[inset_0_-3px_0_var(--color-brand)]')}
     >
       <span className={cx('display tnum block text-[32px] leading-none font-semibold', n !== undefined && n > 0 && tone)}>
         {children ?? (

@@ -130,6 +130,8 @@ export async function loadRange(
           earlyLeaveAt: a?.earlyLeaveAt ? clockOf(a.earlyLeaveAt) : null,
           status,
           recordedBy: a ? (a.recordedBy === 'self' ? 'self' : 'admin') : null,
+          offsite: !!a?.offsite,
+          offsiteNote: a?.offsite ? a.offsiteNote || null : null,
           adminNote: o?.status ? o.note || null : null,
           overridden: !!overrideStatus,
           historyCount: history.get(key) ?? 0,
