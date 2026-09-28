@@ -71,11 +71,13 @@ export default function CheckIn() {
   }
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-[30rem] flex-col px-6 pt-10 pb-safe">
-      {!view && !error && <p className="mt-24 text-center text-text-dim">กำลังตรวจสอบ</p>}
-      {error && <Notice tone="warn" title="เกิดข้อผิดพลาด" body={error} />}
-      {view && <Body view={view} busy={busy} run={run} checkInWithLocation={checkInWithLocation} token={token} />}
-    </main>
+    <DonePage done={view?.kind === 'done' || view?.kind === 'checkout_done'}>
+      <main className="mx-auto flex min-h-dvh max-w-[30rem] flex-col px-6 pt-10 pb-safe">
+        {!view && !error && <p className="mt-24 text-center text-text-dim">กำลังตรวจสอบ</p>}
+        {error && <Notice tone="warn" title="เกิดข้อผิดพลาด" body={error} />}
+        {view && <Body view={view} busy={busy} run={run} checkInWithLocation={checkInWithLocation} token={token} />}
+      </main>
+    </DonePage>
   )
 }
 
@@ -119,7 +121,7 @@ function Body({
           <Actions>
             <a
               href={loginUrl(`/checkin?token=${encodeURIComponent(token)}`, true)}
-              className="flex min-h-11 w-full items-center justify-center rounded-lg border border-rule-strong bg-surface px-4 text-base font-medium"
+              className="flex min-h-11 w-full items-center justify-center rounded-xl border border-rule-strong bg-surface text-text transition-[background-color,transform] duration-200 hover:-translate-y-0.5 hover:bg-sunken px-4 text-base font-medium"
             >
               เข้าสู่ระบบด้วยบัญชีอื่น
             </a>
@@ -323,43 +325,58 @@ function Body({
   }
 }
 
-function Greeting({ nickname }: { nickname: string }) {
+export function Greeting({ nickname }: { nickname: string }) {
   return <p className="display text-2xl font-medium text-text-dim">สวัสดี {nickname}</p>
 }
 
-function ShiftFacts({
+/** สถานที่ทำงาน: ออฟฟิศมีที่เดียว จึงใส่ค่าตายตัวไว้ก่อน (ทำงานนอกสถานที่ส่ง location มาเอง) */
+const LOCATION = 'turnPRO 215 Camt'
+
+export function ShiftFacts({
   project,
   start,
   end,
   scannedAt,
+  location = LOCATION,
+  scannedLabel = 'เวลาที่สแกน',
 }: {
   project: string
   start: string
   end: string
   scannedAt?: string
+  location?: string
+  scannedLabel?: string
 }) {
   const rows: [string, string][] = [
     ['โปรเจก', project],
+    ['สถานที่', location],
     ['เวลากะ', `${start} – ${end}`],
   ]
-  if (scannedAt) rows.push(['เวลาที่สแกน', scannedAt])
+  if (scannedAt) rows.push([scannedLabel, scannedAt])
   return (
     <dl className="mt-7 border-t border-rule">
       {rows.map(([k, v]) => (
-        <div key={k} className="flex items-center justify-between border-b border-rule py-3">
-          <dt className="text-[15px] text-text-dim">{k}</dt>
-          <dd className="tnum text-[15px] font-medium">{v}</dd>
+        <div key={k} className="flex items-center justify-between gap-4 border-b border-rule py-3">
+          <dt className="shrink-0 text-[15px] whitespace-nowrap text-text-dim">{k}</dt>
+          <dd className="tnum text-right text-[15px] font-medium">{v}</dd>
         </div>
       ))}
     </dl>
   )
 }
 
-function Actions({ children }: { children: React.ReactNode }) {
+/**
+ * เช็กชื่อสำเร็จแล้ว: ทั้งหน้าเป็นพื้นขาว (on-white สลับตัวหนังสือเป็นแดง สีสถานะเป็นสีเข้ม) ให้ต่างจากหน้าก่อนกดชัดๆ
+ */
+export function DonePage({ done, children }: { done: boolean; children: React.ReactNode }) {
+  return <div className={done ? 'on-white min-h-dvh bg-white text-text' : ''}>{children}</div>
+}
+
+export function Actions({ children }: { children: React.ReactNode }) {
   return <div className="mt-auto pt-10">{children}</div>
 }
 
-function Notice({ tone, title, body }: { tone: 'warn' | 'calm'; title: string; body: string }) {
+export function Notice({ tone, title, body }: { tone: 'warn' | 'calm'; title: string; body: string }) {
   return (
     <div className="mt-16">
       <p className={`display text-3xl leading-snug font-semibold ${tone === 'warn' ? 'text-absent' : 'text-text'}`}>

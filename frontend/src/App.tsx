@@ -1,4 +1,4 @@
-import { BrowserRouter, Link, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { NotifyProvider } from './components/notify'
 import CheckIn from './pages/CheckIn'
@@ -33,6 +33,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/display/:displayKey" element={<Kiosk />} />
         <Route path="/checkin" element={<CheckIn />} />
+        <Route path="/offsite" element={<Navigate to="/request" replace />} />
         <Route path="/request" element={<RequestPage />} />
         <Route path="/auth/error" element={<AuthError />} />
         <Route path="/admin" element={<AdminLayout />}>
@@ -66,6 +67,9 @@ function Plain({ title, body, children }: { title: string; body: string; childre
 function Home() {
   return (
     <Plain title="ระบบเช็กชื่อเข้างาน" body="พนักงานเช็กชื่อด้วยการสแกน QR ที่จอในออฟฟิศ ไม่ต้องเปิดหน้านี้">
+      <Link to="/request" className="text-[15px] font-medium text-text underline underline-offset-4">
+        ส่งคำขอลาหรือทำงานนอกสถานที่
+      </Link>
       <Link to="/admin" className="text-[15px] font-medium text-text underline underline-offset-4">
         เข้าหน้าแอดมิน
       </Link>

@@ -62,7 +62,7 @@ export function QuickShiftForm({
                   setDays(next)
                   emit(next)
                 }}
-                className={cx('size-11 rounded-lg border text-[15px] font-medium transition-colors', on ? 'border-ink bg-ink text-chalk' : 'border-rule-strong bg-surface text-text-dim hover:bg-sunken')}
+                className={cx('size-11 rounded-lg border text-[15px] font-medium transition-colors', on ? 'border-brand bg-brand text-on-brand' : 'border-rule-strong bg-surface text-text-dim hover:bg-sunken')}
               >
                 {w.short}
               </button>
@@ -72,7 +72,7 @@ export function QuickShiftForm({
       </fieldset>
       <TimePair label="รอบ 1" value={r1} onChange={(v) => { setR1(v); emit(days, v) }} />
       <label className="flex items-center gap-2.5 text-[15px]">
-        <input type="checkbox" className="size-4.5 accent-ink" checked={useR2} onChange={(e) => { setUseR2(e.target.checked); emit(days, r1, e.target.checked) }} />
+        <input type="checkbox" className="size-4.5 accent-brand" checked={useR2} onChange={(e) => { setUseR2(e.target.checked); emit(days, r1, e.target.checked) }} />
         มาวันละสองรอบ (เช่น กลับมาอีกครั้งหลังเลิกเรียน)
       </label>
       {useR2 && <TimePair label="รอบ 2" value={r2} onChange={(v) => { setR2(v); emit(days, r1, true, v) }} />}
@@ -142,7 +142,7 @@ export function WeekGrid({ items }: { items: (ShiftEntry & { label?: string })[]
             <div className="border-b border-rule py-1.5 text-[13px] font-medium text-text-dim">{w.short}</div>
             <div className="flex min-h-14 flex-col gap-1 p-1">
               {list.map((s, i) => (
-                <div key={i} className="rounded bg-ink/[0.06] px-0.5 py-1 leading-tight" title={s.label}>
+                <div key={i} className="rounded bg-sunken px-0.5 py-1 leading-tight" title={s.label}>
                   <span className="tnum block text-[12px] font-medium">{s.startTime}</span>
                   <span className="tnum block text-[11px] text-text-dim">{s.endTime}</span>
                 </div>

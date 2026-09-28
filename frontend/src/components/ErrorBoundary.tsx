@@ -43,7 +43,7 @@ export class ErrorBoundary extends Component<Props, { error: Error | null }> {
           <button onClick={() => location.reload()} className="min-h-11 rounded-lg bg-brand px-4 font-medium text-on-brand hover:bg-brand-strong">
             โหลดหน้าใหม่
           </button>
-          <a href="/admin" className="inline-flex min-h-11 items-center rounded-lg border border-rule-strong bg-surface px-4 font-medium">
+          <a href="/admin" className="inline-flex min-h-11 items-center rounded-xl border border-rule-strong bg-surface text-text transition-[background-color,transform] duration-200 hover:-translate-y-0.5 hover:bg-sunken px-4 font-medium">
             กลับหน้าแอดมิน
           </a>
         </div>

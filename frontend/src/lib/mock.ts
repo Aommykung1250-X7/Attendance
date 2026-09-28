@@ -44,12 +44,15 @@ const employees: Employee[] = [
   ['e7', 'มิว', 'Gen 8', 'student', ''],
   ['e8', 'ฟ้า', 'Gen 7', 'student', ''],
   ['e9', 'กาย', 'Gen 8', 'student', ''],
+  ['e10', 'เจ', null, 'staff', 'Developer'],
+  ['e11', 'พลอย', null, 'staff', 'Sales'],
+  ['e12', 'มายด์', 'Gen 8', 'student', ''],
 ].map(([id, nickname, gen, type, position], i) => ({
   id: id!,
   nickname: nickname!,
   gen,
-  // สองคนสุดท้ายนำเข้ามาโดยยังไม่กรอกอีเมล ไว้ดูป้าย "ยังไม่มีอีเมล"
-  email: i >= 7 ? null : `demo${i + 1}@example.com`,
+  // ฟ้ากับกายนำเข้ามาโดยยังไม่กรอกอีเมล ไว้ดูป้าย "ยังไม่มีอีเมล"
+  email: i === 7 || i === 8 ? null : `demo${i + 1}@example.com`,
   type: type as Employee['type'],
   position: position ?? '',
   isActive: true,
@@ -70,6 +73,9 @@ setShifts('e6', 'p2', wk([1, 2, 3, 4, 5, 6, 7], '09:30', '12:00'))
 setShifts('e7', 'p3', wk([1, 2, 3, 4, 5, 6, 7], '13:00', '17:00'))
 setShifts('e8', 'p3', wk([1, 3, 5, 6, 7], '13:00', '17:00'))
 setShifts('e9', 'p2', wk([2, 4, 6, 7], '09:30', '12:00'))
+setShifts('e10', 'p1', wk([1, 2, 3, 4, 5, 6, 7], '09:00', '18:00'))
+setShifts('e11', 'p1', wk([1, 2, 3, 4, 5, 6, 7], '09:00', '18:00'))
+setShifts('e12', 'p3', wk([1, 2, 3, 4, 5, 6, 7], '13:00', '17:00'))
 
 const holidays: Holiday[] = [{ date: '2026-10-13', name: 'วันคล้ายวันสวรรคต ร.9' }]
 const settings: AppSettings = {
@@ -119,6 +125,26 @@ interface State {
   history: AuditEntry[]
 }
 const state = new Map<string, State>()
+// เจถูกตัดเป็น "ขาด" วันนี้ ไว้ดูแถวขาด (ชื่อแดง + ป้าย "ขาด") ในการ์ด "ยังไม่มา" บนจอ Kiosk
+for (const s of shifts.filter((x) => x.employeeId === 'e10')) {
+  state.set(`${s.id}|${todayISO()}`, { scannedAt: null, earlyLeaveAt: null, checkedOutAt: null, recordedBy: null, override: 'absent', note: 'ไม่มาและติดต่อไม่ได้', history: [] })
+}
+// มายด์ลาวันนี้ ไว้ดูการ์ด "ลา" บนจอ Kiosk
+for (const s of shifts.filter((x) => x.employeeId === 'e12')) {
+  state.set(`${s.id}|${todayISO()}`, { scannedAt: null, earlyLeaveAt: null, checkedOutAt: null, recordedBy: null, override: 'leave', note: 'ลาป่วย', history: [] })
+}
+// พลอยแจ้งทำงานนอกสถานที่วันนี้ ไว้ดูป้ายนอกสถานที่บนจอ Kiosk
+for (const s of shifts.filter((x) => x.employeeId === 'e11')) {
+  state.set(`${s.id}|${todayISO()}`, {
+    scannedAt: '08:52:10',
+    earlyLeaveAt: null,
+    checkedOutAt: null,
+    recordedBy: 'self',
+    override: 'offsite',
+    note: 'ประชุมลูกค้า สยามพารากอน',
+    history: [],
+  })
+}
 
 const weekdayOf = (date: string) => {
   const d = new Date(`${date}T00:00:00Z`).getUTCDay()
@@ -200,7 +226,7 @@ function rowsFor(date: string, employeeId?: string): DayLogRow[] {
 
 function summary(rows: DayLogRow[]): KioskBoard['summary'] {
   const c = (st: ShiftStatus) => rows.filter((r) => r.status === st).length
-  return { expected: rows.length, arrived: c('ontime') + c('late'), late: c('late'), pending: c('pending'), leave: c('leave'), absent: c('absent') }
+  return { expected: rows.length, arrived: c('ontime') + c('late') + c('offsite'), late: c('late'), pending: c('pending'), leave: c('leave'), absent: c('absent'), offsite: c('offsite') }
 }
 
 const thaiFull = (date: string) =>

@@ -1,14 +1,22 @@
 @import 'tailwindcss';
 
 /*
- * โทนของระบบ: เทาเข้ม #212529 เป็นสีหลัก ส้ม #F7941D เป็นสีเน้น (จากชุดสีของบริษัท)
- * ส้มหลักสว่างเกินกว่าจะใส่ตัวหนังสือสีขาว (คอนทราสต์ 2.3) ปุ่มส้มจึงใช้ตัวหนังสือสีเข้ม #111315 (8.2)
- * ตัวหนังสือสีส้มบนพื้นขาวใช้ส้มเข้ม #B4450E (5.5) แทน เพราะส้มในชุดสีอ่อนเกินสำหรับตัวเล็ก
- * สีสถานะ มา/ขาด/ลา ยังเป็นเขียว/แดง/น้ำเงิน เพราะคนอ่านความหมายจากสีพวกนี้อยู่แล้ว
+ * ธีมขาวครีม-ขาว-แดง ใช้ทั้งเว็บ (แอดมิน หน้าเช็กชื่อ จอ Kiosk)
+ * พื้นหน้าขาวครีม #FBF7EF · การ์ด ช่องกรอก ปุ่มรอง แถบเมนู dialog เป็นขาว · ตัวหนังสือบนพื้นอ่อนทั้งหมดเป็นแดง #B0120A
+ * ตัวแปรใน @theme คือค่า "บนพื้นหน้า" · ข้างในพื้นขาว (.panel, .bg-surface, .on-white) ตัวแปรชุดเดียวกันถูกตั้งเป็นค่า "บนขาว"
+ * (ดูบล็อก "สลับสีบนพื้นขาว" ด้านล่าง) ตอนนี้สองชุดเกือบเหมือนกันเพราะพื้นหน้าก็สว่าง ถ้ากลับไปใช้พื้นมืดแก้แค่ @theme
+ * คอนทราสต์: แดง #B0120A บนขาวครีม 6.7:1 · บนขาว 7.1:1 · ขาวบนปุ่มแดง 7.1:1 ผ่าน AA ทุกคู่
+ * เปลี่ยนโทนทั้งเว็บ = แก้ตัวแปรในบล็อกนี้กับบล็อกสลับสีบนพื้นขาว
  */
 @theme {
   --font-sans: 'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Anuphan', 'IBM Plex Sans Thai', ui-sans-serif, system-ui, sans-serif;
+
+  /* จานสีหลัก */
+  --color-page: #fbf7ef;
+  --color-red: #b0120a;
+  --color-red-strong: #8f0e08;
+  --color-on-white: #b0120a;
 
   /* ชุดเทา (neutral) */
   --color-ink: #212529;
@@ -16,40 +24,47 @@
   --color-ink-3: #111315;
   --color-ink-rule: #4e5054;
   --color-chalk: #ffffff;
-  --color-chalk-dim: #a7a7a9;
+  --color-chalk-dim: rgba(255, 255, 255, 0.75);
 
-  /* ชุดส้ม (brand) */
-  --color-brand: #f7941d;
-  --color-brand-strong: #f4741e;
-  --color-brand-deep: #e5541a;
-  --color-brand-300: #f9a94a;
-  --color-brand-200: #fabf77;
-  --color-brand-100: #fcd4a5;
-  --color-brand-50: #fdead2;
-  --color-brand-text: #b4450e;
-  --color-on-brand: #111315;
+  /* brand = ปุ่มหลัก/ของที่เลือกอยู่: แดงทึบ ตัวหนังสือขาว (ใช้ได้ทั้งบนดำและบนขาว) */
+  --color-brand: #b0120a;
+  --color-brand-strong: #8f0e08;
+  --color-brand-deep: #d9261c;
+  --color-brand-300: #e0766f;
+  --color-brand-200: #efb3ae;
+  --color-brand-100: #f6d6d3;
+  --color-brand-50: #fdf0ef;
+  --color-brand-text: #b0120a;
+  --color-on-brand: #ffffff;
 
-  --color-paper: #f4f4f5;
+  /* ค่าบนพื้นหน้าขาวครีม */
+  --color-paper: #fbf7ef;
   --color-surface: #ffffff;
-  --color-sunken: #ececed;
-  --color-text: #212529;
-  --color-text-dim: #4e5054;
-  --color-rule: #d3d3d4;
-  --color-rule-strong: #a7a7a9;
+  --color-sunken: rgba(176, 18, 10, 0.06);
+  --color-text: #b0120a;
+  --color-text-dim: #7a3b35;
+  --color-rule: rgba(176, 18, 10, 0.14);
+  --color-rule-strong: rgba(176, 18, 10, 0.32);
 
-  --color-accent: #f7941d;
-  --color-focus: #e5541a;
+  --color-accent: #b0120a;
+  --color-focus: #b0120a;
 
+  /* สถานะ: ตัวหนังสือสีสถานะใช้สีเข้มบนพื้นอ่อน · ป้ายพื้นอ่อน (*-bg) ใช้ตัวหนังสือสีเข้ม (*-ink) */
   --color-ontime: #1d7a4c;
   --color-ontime-bg: #e4f3ea;
-  --color-late: #b4450e;
-  --color-late-bg: #fdead2;
+  --color-ontime-ink: #1d7a4c;
+  --color-late: #8a4a0c;
+  --color-late-bg: #fdf0d5;
+  --color-late-ink: #8a4a0c;
   --color-absent: #b3261e;
-  --color-absent-bg: #f9e3e1;
+  --color-absent-bg: #fbe3e1;
+  --color-absent-ink: #b3261e;
   --color-leave: #3b5998;
   --color-leave-bg: #e5eaf6;
-  --color-pending: #7a7c7f;
-  --color-pending-bg: #ececed;
+  --color-leave-ink: #3b5998;
+  --color-pending: #6b5d52;
+  --color-pending-bg: #f1ece6;
+  --color-pending-ink: #6b5d52;
 
   /* จอ QR แบบติดผนัง: สีถูกแยกเป็น token เพื่อไม่กระทบหน้าจอแอดมิน */
   --color-kiosk-frame: #dedede;
@@ -69,6 +84,47 @@
   --animate-pop: pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
   --animate-toast-in: toast-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
   --animate-toast-out: toast-out 0.2s ease-in both;
+  --animate-pulse-soft: pulse-soft 1.8s ease-in-out infinite;
+  --animate-checkin: checkin-in 1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  /* จอ Kiosk: แถว "ล่าสุด" ใน "มาแล้ว" เลื่อนลงเข้าที่สั้นๆ ตอนมีคนเช็กชื่อใหม่ */
+  --animate-arrive: arrive 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+
+  /*
+   * สีเฉพาะจอ Kiosk (อยู่ในการ์ดขาวทั้งหมด): หลักเป็นแดง #B0120A · "ยังไม่มา"/"สาย" เป็นส้มน้ำตาลเข้มให้แยกจากแดง
+   * k-blue บนขาว 7.1 · k-orange บนขาว 5.9 · k-zero บนขาว 4.6
+   */
+  --color-k-blue: #b0120a;
+  --color-k-blue-tint: #fdecea;
+  --color-k-blue-card: #fff7f6;
+  --color-k-blue-line: #f3d0cc;
+  --color-k-blue-tag-line: #f3d0cc;
+  --color-k-blue-latest: #fdecea;
+  --color-k-orange: #9a4318;
+  --color-k-orange-dot: #d9731f;
+  --color-k-orange-tint: #f7e7ce;
+  --color-k-orange-card: #fffaf5;
+  --color-k-orange-line: #f1d3bd;
+  --color-k-red: #b0120a;
+  --color-k-red-tint: #fdecea;
+  --color-k-neutral-tint: #f4f1f0;
+  --color-k-zero: #7a6e6c;
+  --color-k-track: #f1e4e2;
+  --color-k-seconds: rgba(176, 18, 10, 0.6);
+  /* การ์ด "มาแล้ว": ตัวหนังสือกรมท่า #17345C บนกรอบฟ้าเทา #B5C8D4 คอนทราสต์ 7.2 */
+  --color-arrived-text: #17345c;
+  --color-arrived-bg: #b5c8d4;
+  /* มาสาย: ส้ม (คอนทราสต์ 3.8 ผ่านเฉพาะตัวใหญ่ ต่ำกว่า AA 4.5 ของตัวปกติ) */
+  --color-arrived-late-bg: #fdd5ba;
+  --color-arrived-late-line: #f4a06b;
+  --color-arrived-late-text: #c2410c;
+  /* ลา (การ์ด "ลา"): เหลือง (คอนทราสต์ 3.7 ผ่านเฉพาะตัวใหญ่ ต่ำกว่า AA 4.5 ของตัวปกติ) */
+  --color-leave-row-bg: #fcd9a3;
+  --color-leave-row-line: #f0b25c;
+  --color-leave-row-text: #b45309;
+  /* ทำงานนอกสถานที่: พื้นเขียวอมฟ้าอ่อน ขอบเขียว ตัวหนังสือเขียวเข้ม (คอนทราสต์ 3.9 ผ่านเฉพาะตัวใหญ่ ต่ำกว่า AA 4.5 ของตัวปกติ) */
+  --color-arrived-offsite-bg: #bfe0dc;
+  --color-arrived-offsite-line: #7fc0b8;
+  --color-arrived-offsite-text: #0f766e;
 
   @keyframes pop {
     from {
@@ -123,15 +179,174 @@
       opacity: 1;
     }
   }
+  /* จุดสถานะ "ยังไม่มา" เต้นเบาๆ ให้รู้สึกว่ายังรอ ไม่ใช่ค้าง */
+  @keyframes pulse-soft {
+    0%,
+    100% {
+      opacity: 0.7;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+  }
+  @keyframes arrive {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* แถวคนที่เพิ่งเช็กชื่อเข้า "มาแล้ว": ไถลจากขวาเข้าที่ + พื้นหลังฟ้าอ่อนสว่างวาบแล้วจางหาย */
+  @keyframes checkin-in {
+    0% {
+      opacity: 0;
+      transform: translateX(16px);
+      background-color: var(--color-brand-100);
+    }
+    30% {
+      opacity: 1;
+      transform: translateX(0);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
 }
 
-/* บนพื้นเทาเข้ม (แถบเมนูแอดมิน) สีสถานะต้องสว่างขึ้น */
-.theme-ink {
-  --color-ontime: #63d69c;
-  --color-late: #f9a94a;
-  --color-absent: #ff8f85;
-  --color-leave: #a3bbff;
-  --color-pending: #a7a7a9;
+/* แถบเลื่อนบางๆ สีแดงอ่อน ให้รายชื่อ "ยังไม่มา"/"มาแล้ว" ตอนเกิน 6 คน */
+.kiosk-theme .scroll-list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-k-blue-line) transparent;
+}
+.kiosk-theme .scroll-list::-webkit-scrollbar {
+  width: 6px;
+}
+.kiosk-theme .scroll-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.kiosk-theme .scroll-list::-webkit-scrollbar-thumb {
+  background: var(--color-k-blue-line);
+  border-radius: 999px;
+}
+
+/*
+ * สลับสีบนพื้นขาว: ของที่เป็นพื้นขาวบนหน้าดำ ตั้งตัวแปรสีใหม่ให้ตัวเองและลูกๆ
+ * text-text กลายเป็นแดง · เส้น/พื้นซ้อนเป็นแดงอ่อน · สีสถานะเป็นสีเข้ม
+ * .panel = การ์ด/แถบเมนู · .panel-modal = dialog/ข้อความแจ้งผล · .bg-surface = ช่องกรอก ปุ่มรอง ช่องในตาราง · .on-white = ใส่เองเมื่อจำเป็น
+ */
+.panel,
+.panel-modal,
+.bg-surface,
+.on-white {
+  --color-text: #b0120a;
+  --color-text-dim: #7a3b35;
+  --color-rule: rgba(176, 18, 10, 0.14);
+  --color-rule-strong: rgba(176, 18, 10, 0.32);
+  /* ชั้นที่ซ้อนในการ์ด: ขาวอมแดงโปร่ง ให้เห็นกระจกด้านล่างเป็นชั้นๆ */
+  --color-sunken: rgba(253, 236, 234, 0.6);
+  --color-focus: #b0120a;
+  --color-ontime: #1d7a4c;
+  --color-late: #8a4a0c;
+  --color-absent: #b3261e;
+  --color-leave: #3b5998;
+  --color-pending: #6b5d52;
+  color-scheme: light;
+}
+
+/*
+ * กระจกฝ้า (frosted glass): ขาวโปร่ง 84% + เบลอสิ่งที่อยู่ด้านหลัง + ขอบขาวสว่างเหมือนขอบกระจกสะท้อนแสง
+ * บนพื้นขาวครีม กระจกเกือบเป็นขาว ตัวหนังสือแดงได้ ~7:1 (ถ้ากลับไปใช้พื้นมืด อย่าให้โปร่งกว่า 84%)
+ */
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.84);
+  --glass-border: rgba(120, 80, 40, 0.12);
+  --glass-blur: 22px;
+}
+/* มือถือเบลอน้อยลง ลดภาระการวาด */
+@media (max-width: 640px) {
+  :root {
+    --glass-blur: 12px;
+  }
+}
+
+/* การ์ด "มาแล้ว" บนจอ Kiosk: ตัวหนังสือทั้งการ์ดเป็นกรมท่า (อยู่หลัง .panel จึงทับค่าที่ .panel ตั้งไว้) */
+.arrived-theme {
+  --color-text: var(--color-arrived-text);
+  --color-text-dim: var(--color-arrived-text);
+  --color-k-blue: var(--color-arrived-text);
+  --color-k-orange: var(--color-arrived-text);
+  --color-k-blue-tint: rgba(181, 200, 212, 0.5);
+  --color-k-blue-tag-line: rgba(23, 52, 92, 0.25);
+  --color-k-blue-line: rgba(23, 52, 92, 0.25);
+}
+
+/* แถวมาสาย / ทำงานนอกสถานที่ในการ์ด "มาแล้ว": ตัวหนังสือ ป้าย และขอบแถวล่าสุดใช้สีของแถวนั้น */
+.arrived-theme .late-row {
+  --color-text: var(--color-arrived-late-text);
+  --color-text-dim: var(--color-arrived-late-text);
+  --color-k-blue: var(--color-arrived-late-text);
+  --color-k-orange: var(--color-arrived-late-text);
+  --color-k-blue-tag-line: var(--color-arrived-late-line);
+  --color-arrived-text: var(--color-arrived-late-text);
+}
+.arrived-theme .offsite-row {
+  --color-text: var(--color-arrived-offsite-text);
+  --color-text-dim: var(--color-arrived-offsite-text);
+  --color-k-blue: var(--color-arrived-offsite-text);
+  --color-k-orange: var(--color-arrived-offsite-text);
+  --color-k-blue-tag-line: var(--color-arrived-offsite-line);
+  --color-arrived-text: var(--color-arrived-offsite-text);
+}
+
+/* แถวในการ์ด "ลา": ตัวหนังสือและขอบป้ายเป็นน้ำตาลเหลือง */
+.leave-row {
+  --color-text: var(--color-leave-row-text);
+  --color-text-dim: var(--color-leave-row-text);
+  --color-rule: var(--color-leave-row-line);
+}
+
+/* อยู่ใน layer components: class ของ Tailwind (bg-/border-/rounded-) ที่ใส่คู่กันจึงทับได้ */
+@layer components {
+  .panel,
+  .panel-modal {
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.92), var(--glass-bg) 45%, rgba(255, 255, 255, 0.8));
+    color: var(--color-text);
+    border: 1px solid var(--glass-border);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.35),
+      0 10px 30px -14px rgba(90, 60, 30, 0.28);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+    backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+  }
+  /* ห้ามใส่ backdrop-blur ที่ ::backdrop ของ dialog: Chrome วาดหน้าด้านหลังกลับด้านเป็นเงากระจก (ตัว dialog เองเบลอได้) */
+  .panel-modal {
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.95),
+      0 30px 80px -20px rgba(0, 0, 0, 0.8);
+  }
+  /* ชั้นกระจกที่ลอยอยู่บนการ์ดอีกชั้น (แถวรายชื่อ ช่องสถิติ) */
+  .glass-tile {
+    background: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 4px 14px -8px rgba(7, 22, 41, 0.35);
+  }
+  /* ไม่มี backdrop-filter: ใช้ขาวทึบแทน */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .panel,
+    .panel-modal {
+      background: #ffffff;
+    }
+  }
 }
 
 @layer base {
@@ -140,8 +355,15 @@
     text-rendering: optimizeLegibility;
   }
   body {
-    @apply bg-paper font-sans text-text antialiased;
+    @apply bg-page font-sans text-text antialiased;
     font-feature-settings: 'kern';
+    min-height: 100dvh;
+  }
+  /* ช่องกรอก: ปฏิทิน/รายการตัวเลือกของเบราว์เซอร์ใช้โหมดสว่างให้เข้ากับพื้นอ่อน */
+  input,
+  select,
+  textarea {
+    color-scheme: light;
   }
   :focus-visible {
     outline: 2px solid var(--color-focus);

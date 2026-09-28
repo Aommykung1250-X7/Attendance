@@ -97,7 +97,7 @@ export default function Today() {
       {!log && !error && <Loading />}
 
       {log && log.holiday && (
-        <div className="rounded-xl border border-rule bg-surface">
+        <div className="panel rounded-2xl">
           <Empty title={`วันหยุด: ${log.holiday}`} body="วันนี้ไม่นับการเช็กชื่อของใคร ถ้าไม่ใช่วันหยุด ลบได้ที่หน้าตั้งค่า" />
         </div>
       )}
@@ -105,7 +105,7 @@ export default function Today() {
       {log && !log.holiday && (
         <>
           {!log.isToday && date < todayISO() && (
-            <p className="mb-4 rounded-lg bg-late-bg px-4 py-2.5 text-[15px] text-late">กำลังดูวันที่ผ่านมาแล้ว การแก้ในหน้านี้คือการแก้ย้อนหลัง และจะถูกบันทึกว่าใครแก้</p>
+            <p className="mb-4 rounded-lg bg-late-bg px-4 py-2.5 text-[15px] text-late-ink">กำลังดูวันที่ผ่านมาแล้ว การแก้ในหน้านี้คือการแก้ย้อนหลัง และจะถูกบันทึกว่าใครแก้</p>
           )}
           <Summary log={log} filter={filter} setFilter={setFilter} />
 
@@ -119,7 +119,7 @@ export default function Today() {
           </div>
 
           {log.rows.length === 0 ? (
-            <div className="rounded-xl border border-rule bg-surface">
+            <div className="panel rounded-2xl">
               <Empty title="วันนี้ไม่มีใครมีตารางงาน" body="เพิ่มคนเข้าโปรเจกหรือนำเข้าตารางจาก Excel เพื่อให้มีรายชื่อในหน้านี้" />
             </div>
           ) : rows.length === 0 ? (
@@ -127,7 +127,7 @@ export default function Today() {
           ) : (
             <div className="space-y-6">
               {groups.map(([start, list]) => (
-                <section key={start} className="overflow-hidden rounded-xl border border-rule bg-surface">
+                <section key={start} className="panel overflow-hidden rounded-2xl">
                   <header className="flex items-baseline gap-3 border-b border-rule bg-sunken/60 px-4 py-2.5">
                     <h2 className="display tnum text-[17px] font-semibold">เข้า {start}</h2>
                     <span className="text-sm text-text-dim">{list.length} คน</span>
@@ -162,13 +162,13 @@ function Summary({ log, filter, setFilter }: { log: DayLog; filter: Filter; setF
     { key: 'absent', label: 'ขาด', n: s.absent, tone: 'text-absent' },
   ]
   return (
-    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-rule bg-rule sm:grid-cols-4 lg:grid-cols-7">
+    <div className="panel grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-rule sm:grid-cols-4 lg:grid-cols-7">
       {cells.map((c) => (
         <button
           key={c.key}
           onClick={() => setFilter(filter === c.key ? 'all' : c.key)}
           aria-pressed={filter === c.key}
-          className={cx('bg-surface px-4 py-3.5 text-left transition-colors hover:bg-sunken', filter === c.key && c.key !== 'all' && 'bg-sunken shadow-[inset_0_-3px_0_var(--color-brand)]')}
+          className={cx('bg-white/45 px-4 py-3.5 text-left transition-colors hover:bg-sunken', filter === c.key && c.key !== 'all' && 'bg-sunken shadow-[inset_0_-3px_0_var(--color-brand)]')}
         >
           <span className={cx('display tnum block text-[28px] leading-none font-semibold', c.n > 0 && c.tone)}>{c.n}</span>
           <span className="mt-1.5 block text-[13px] text-text-dim">{c.label}</span>
@@ -185,6 +185,11 @@ function Row({ row: r, onOpen }: { row: DayLogRow; onOpen: () => void }) {
         <span className="min-w-0">
           <span className="text-[16px] font-medium">{r.nickname}</span>
           {r.gen && <span className="ml-2 text-sm text-text-dim">{r.gen}</span>}
+          {r.status === 'offsite' && (
+            <span className="ml-2 rounded-full border border-arrived-offsite-line bg-arrived-offsite-bg px-2 py-0.5 text-[12px] font-medium text-arrived-offsite-text">
+              นอกสถานที่
+            </span>
+          )}
           <span className="mt-0.5 block truncate text-[13px] text-text-dim sm:hidden">
             {r.projectName} · {r.startTime}–{r.endTime}
           </span>

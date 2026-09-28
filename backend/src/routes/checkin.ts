@@ -4,6 +4,7 @@
 // 2. token ยังไม่หมดอายุ → สร้าง session ชั่วคราว 5 นาที บันทึกเวลาที่สแกนทันที ส่ง cookie อ้างอิงกลับ
 // 3. ยังไม่ได้ล็อกอิน → ตอบ 401 พร้อม loginUrl หน้าเว็บพาไปหน้า Google แล้วกลับมาที่ URL เดิม
 // 4. กลับมาแล้ว cookie ยังชี้ไป session เดิม เวลาที่ใช้จึงเป็นเวลาจากข้อ 2 ไม่ใช่เวลาที่ล็อกอินเสร็จ
+//
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { config } from '../config.js'

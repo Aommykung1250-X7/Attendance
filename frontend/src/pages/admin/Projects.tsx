@@ -36,7 +36,7 @@ export default function Projects() {
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {list.map((p) => (
-              <Link key={p.id} to={`/admin/projects/${p.id}`} className="group rounded-xl border border-rule bg-surface p-5 transition-colors hover:border-rule-strong hover:bg-sunken/40">
+              <Link key={p.id} to={`/admin/projects/${p.id}`} className="group panel rounded-2xl p-5 transition-[background-color,transform] duration-200 hover:-translate-y-0.5 hover:bg-sunken">
                 <p className="display text-lg font-semibold group-hover:underline underline-offset-4">{p.name}</p>
                 <p className="tnum mt-1 text-sm text-text-dim">
                   เวลาเริ่มต้น {p.defaultStart}–{p.defaultEnd}

@@ -153,6 +153,7 @@ export async function confirmCheckIn(
         checkinLongitude: location.longitude,
         checkinAccuracyMeters: location.accuracy,
         checkinDistanceMeters: location.distance,
+        isOffsite: false,
       },
     })
 
