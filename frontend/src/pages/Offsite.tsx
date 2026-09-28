@@ -10,7 +10,7 @@ const NOTE_MAX = 200
 /**
  * เช็กชื่อแบบทำงานนอกสถานที่: คนที่ไม่ได้อยู่ออฟฟิศจึงสแกน QR ที่จอไม่ได้ เปิดหน้านี้เองบนมือถือ
  * ล็อกอิน Google แล้วกรอกว่าทำงานที่ไหน ระบบบันทึกเวลาที่กดปุ่ม สถานะคิดปกติ/สายเหมือนการสแกน
- * แอดมินเห็นในบันทึกประจำวันว่าแถวนี้แจ้งนอกสถานที่ และจอในออฟฟิศขึ้นเป็นสีม่วงในการ์ด "มาแล้ว"
+ * แอดมินเห็นในบันทึกประจำวันว่าแถวนี้แจ้งนอกสถานที่ และจอในออฟฟิศแสดงป้ายนอกสถานที่
  */
 export default function Offsite() {
   const [view, setView] = useState<CheckInView | null>(null)
@@ -89,6 +89,15 @@ function Body({
 
     case 'too_early':
       return <Notice tone="calm" title="ยังเช็กเข้ากะถัดไปไม่ได้" body={`กะปัจจุบันสิ้นสุดเวลา ${view.previousEndTime} หลังจากนั้นเปิดหน้านี้อีกครั้ง`} />
+
+    case 'too_early_for_shift':
+      return <Notice tone="calm" title="ยังไม่ถึงเวลาเช็กชื่อเข้างาน" body={`กะของคุณเริ่มเวลา ${view.startTime} เปิดเช็กชื่อได้ตั้งแต่ ${view.availableFrom}`} />
+
+    case 'ready_checkout':
+      return <Notice tone="calm" title={`${view.nickname} เช็กชื่อเข้างานแล้ว`} body="ระบบจะบันทึกเวลาออกงานตามการตั้งค่าของออฟฟิศ" />
+
+    case 'checkout_done':
+      return <Notice tone="calm" title="บันทึกเวลาออกงานแล้ว" body="กะนี้จบแล้ว ปิดหน้านี้ได้เลย" />
 
     case 'ready':
       return (

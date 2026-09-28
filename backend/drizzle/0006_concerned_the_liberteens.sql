@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "auto_checkout_mode" text DEFAULT 'after_shift_5m' NOT NULL;

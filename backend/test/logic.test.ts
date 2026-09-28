@@ -2,9 +2,11 @@
 
 import { describe, expect, it } from 'vitest'
 import { issueQrToken, verifyQrToken } from '../src/lib/qr.js'
-import { applyAssignment, describeSchedule, validateEntries, type PlanShift } from '../src/lib/schedule.js'
+import { applyAssignment, describeSchedule, reconcile, validateEntries, type PlanShift } from '../src/lib/schedule.js'
 import { selectShift, type SelShift } from '../src/lib/selection.js'
 import { computeStatus, isLate } from '../src/lib/status.js'
+import { haversineMeters, validateCheckinLocation } from '../src/lib/location.js'
+import { autoCheckoutDueAt } from '../src/lib/auto-checkout.js'
 import { addDays, localParts, monthDays, weekdayOf, zoned } from '../src/lib/time.js'
 
 describe('เวลาไทย', () => {
@@ -25,6 +27,16 @@ describe('เวลาไทย', () => {
   })
 })
 
+describe('เวลาเช็กเอาต์อัตโนมัติ', () => {
+  it('โหมดหลังเลิกงาน 5 นาที ใช้เวลาสิ้นสุดกะบวก 5 นาที', () => {
+    expect(autoCheckoutDueAt('2026-09-24', '18:00', 'after_shift_5m').toISOString()).toBe('2026-09-24T11:05:00.000Z')
+  })
+
+  it('โหมดสิ้นวันรอถึง 23:59 เวลาไทย ไม่ขึ้นกับเวลาเลิกกะ', () => {
+    expect(autoCheckoutDueAt('2026-09-24', '18:00', 'end_of_day').toISOString()).toBe('2026-09-24T16:59:00.000Z')
+  })
+})
+
 describe('เกณฑ์สาย (spec หัวข้อ 7)', () => {
   const at = (t: string) => new Date(`2026-09-11T${t}+07:00`)
   it('09:00:59.999 ยังเป็นปกติ', () => {
@@ -35,6 +47,10 @@ describe('เกณฑ์สาย (spec หัวข้อ 7)', () => {
   })
   it('มาก่อนเวลามากๆ ก็ปกติ', () => {
     expect(isLate(at('06:00:00'), '2026-09-11', '09:00')).toBe(false)
+  })
+  it('ใช้จำนวนนาทีผ่อนผันจาก Settings', () => {
+    expect(isLate(at('09:10:59.999'), '2026-09-11', '09:00', 10)).toBe(false)
+    expect(isLate(at('09:11:00.000'), '2026-09-11', '09:00', 10)).toBe(true)
   })
 
   const base = { date: '2026-09-11', startTime: '09:00', endTime: '18:00', holiday: false, override: null }
@@ -48,6 +64,28 @@ describe('เกณฑ์สาย (spec หัวข้อ 7)', () => {
   it('ไม่สแกน: ก่อนสิ้นสุดกะ = ยังไม่มา, ตั้งแต่สิ้นสุดกะ = ขาด', () => {
     expect(computeStatus({ ...base, scannedAt: null, now: at('17:59:59') })).toBe('pending')
     expect(computeStatus({ ...base, scannedAt: null, now: at('18:00:00') })).toBe('absent')
+  })
+  it('ลาเต็มวันเป็นลา และลาครึ่งเช้าใช้ 13:00 เป็นเวลาเริ่ม', () => {
+    expect(computeStatus({ ...base, leavePortion: 'full_day', scannedAt: null, now: at('20:00:00') })).toBe('leave')
+    expect(computeStatus({ ...base, leavePortion: 'morning', scannedAt: null, now: at('12:59:59') })).toBe('leave')
+    expect(computeStatus({ ...base, leavePortion: 'morning', scannedAt: at('13:01:00'), now: at('14:00:00') })).toBe('late')
+  })
+})
+
+describe('พื้นที่เช็กอิน', () => {
+  const settings = {
+    officeLatitude: 18.800523577253724,
+    officeLongitude: 98.95073601100776,
+    checkinRadiusMeters: 200,
+    maxLocationAccuracyMeters: 100,
+  }
+  it('พิกัดสำนักงานมีระยะเป็นศูนย์และผ่าน', () => {
+    expect(haversineMeters(settings.officeLatitude, settings.officeLongitude, settings.officeLatitude, settings.officeLongitude)).toBe(0)
+    expect(validateCheckinLocation({ latitude: settings.officeLatitude, longitude: settings.officeLongitude, accuracy: 100 }, settings).distance).toBe(0)
+  })
+  it('ปฏิเสธ accuracy เกินกำหนดและพิกัดนอก 200 เมตร', () => {
+    expect(() => validateCheckinLocation({ latitude: settings.officeLatitude, longitude: settings.officeLongitude, accuracy: 100.1 }, settings)).toThrow()
+    expect(() => validateCheckinLocation({ latitude: settings.officeLatitude + 0.003, longitude: settings.officeLongitude, accuracy: 10 }, settings)).toThrow()
   })
 })
 
@@ -65,9 +103,22 @@ describe('การเลือกกะ (spec หัวข้อ 8)', () => {
   const evening = s('e', '17:00', '20:00')
 
   it('ไม่มีกะ', () => expect(selectShift([], '09:00:00')).toEqual({ kind: 'no_shift_today' }))
-  it('เช็กเข้าล่วงหน้าได้ไม่จำกัดเวลา', () =>
-    expect(selectShift([morning, evening], '06:00:00')).toEqual({ kind: 'ready', shiftId: 'm' }))
-  it('เช็กเข้าแล้วสแกนซ้ำระหว่างกะ → หน้าแจ้งกลับก่อน พร้อมนาทีที่เหลือ', () =>
+  it('สแกนก่อนเวลากะเกิน 30 นาที → too_early_for_shift', () =>
+    expect(selectShift([morning, evening], '06:00:00')).toEqual({
+      kind: 'too_early_for_shift',
+      shiftId: 'm',
+      startTime: '09:30',
+      availableFrom: '09:00',
+    }))
+  it('สแกนภายใน 30 นาทีก่อนเริ่มกะ → ready', () =>
+    expect(selectShift([morning, evening], '09:05:00')).toEqual({ kind: 'ready', shiftId: 'm' }))
+  it('สแกนซ้ำก่อนหรือตรงเวลาเริ่มกะ → ready (isUpdate)', () =>
+    expect(selectShift([{ ...morning, attended: true }, evening], '09:25:00')).toEqual({
+      kind: 'ready',
+      shiftId: 'm',
+      isUpdate: true,
+    }))
+  it('เช็กเข้าแล้วสแกนซ้ำระหว่างกะ (หลังเริ่มกะ) → หน้าแจ้งกลับก่อน พร้อมนาทีที่เหลือ', () =>
     expect(selectShift([{ ...morning, attended: true }, evening], '11:00:00')).toEqual({
       kind: 'early_leave',
       shiftId: 'm',
@@ -77,28 +128,88 @@ describe('การเลือกกะ (spec หัวข้อ 8)', () => {
     const r = selectShift([{ ...morning, attended: true, earlyLeft: true }, evening], '10:00:00')
     expect(r).toEqual({ kind: 'too_early', previousEndTime: '12:00' })
   })
-  it('กลับมารอบเย็นหลังกะเช้าจบ → เช็กเข้ากะเย็นได้ ไม่ใช่เข้าใจผิดว่ากำลังกลับบ้าน', () =>
-    expect(selectShift([{ ...morning, attended: true }, evening], '16:50:00')).toEqual({ kind: 'ready', shiftId: 'e' }))
+  it('กลับมารอบเย็นหลังกะเช้าเช็กออกแล้ว → เช็กเข้ากะเย็นได้', () => {
+    expect(selectShift([{ ...morning, attended: true, checkedOut: true }, evening], '16:50:00')).toEqual({
+      kind: 'ready',
+      shiftId: 'e',
+    })
+  })
   it('ขาดกะเช้า มาตอนเย็น → ข้ามกะเช้าที่จบแล้ว ไปเช็กกะเย็น', () =>
     expect(selectShift([morning, evening], '16:55:00')).toEqual({ kind: 'ready', shiftId: 'e' }))
   it('ทุกกะจัดการแล้ว → all_done', () =>
-    expect(selectShift([{ ...morning, attended: true }, { ...evening, attended: true, earlyLeft: true }], '19:00:00')).toEqual({
+    expect(
+      selectShift(
+        [
+          { ...morning, attended: true, checkedOut: true },
+          { ...evening, attended: true, earlyLeft: true },
+        ],
+        '19:00:00',
+      ),
+    ).toEqual({
       kind: 'all_done',
     }))
   it('แอดมินกดลาไว้ → ไม่ต้องเช็กกะนั้น', () =>
     expect(selectShift([{ ...morning, override: 'leave' }], '09:00:00')).toEqual({ kind: 'all_done' }))
-  it('หลังเวลาสิ้นสุดของกะที่เช็กเข้าแล้ว ไม่ขึ้นหน้าแจ้งกลับก่อน', () =>
-    expect(selectShift([{ ...morning, attended: true }], '12:00:00')).toEqual({ kind: 'all_done' }))
+
+  const workShift = s('w', '09:00', '18:00', { attended: true })
+  it('สแกนตอน 17:59:59 (ก่อน 18:00) → หน้าขอออกก่อนเวลา (early_leave)', () => {
+    expect(selectShift([workShift], '17:59:59')).toEqual({
+      kind: 'early_leave',
+      shiftId: 'w',
+      minutesRemaining: 1,
+    })
+  })
+  it('สแกนตอน 18:00:00 (ตรงเวลาออก) → หน้า check-out ออกงาน (ready_checkout)', () => {
+    expect(selectShift([workShift], '18:00:00')).toEqual({
+      kind: 'ready_checkout',
+      shiftId: 'w',
+    })
+  })
+  it('สแกนตอน 18:00:01 (หลังเวลาออก) → หน้า check-out ออกงาน (ready_checkout)', () => {
+    expect(selectShift([workShift], '18:00:01')).toEqual({
+      kind: 'ready_checkout',
+      shiftId: 'w',
+    })
+  })
+  it('เช็กชื่อออกงานแล้ว สแกนอีกครั้ง → all_done', () => {
+    expect(selectShift([{ ...workShift, checkedOut: true }], '18:05:00')).toEqual({
+      kind: 'all_done',
+    })
+  })
+
+  it('แอดมินแก้สถานะเป็นปกติ (present) → สแกนเวลาออกงานได้ (ready_checkout)', () => {
+    const presentShift = s('w', '09:00', '18:00', { attended: true, override: 'present' })
+    expect(selectShift([presentShift], '18:00:00')).toEqual({
+      kind: 'ready_checkout',
+      shiftId: 'w',
+    })
+  })
+
+  it('แอดมินแก้สถานะเป็นสาย (late) → สแกนเวลาออกงานได้ (ready_checkout)', () => {
+    const lateShift = s('w', '09:00', '18:00', { attended: true, override: 'late' })
+    expect(selectShift([lateShift], '18:00:00')).toEqual({
+      kind: 'ready_checkout',
+      shiftId: 'w',
+    })
+  })
+
+  it('แอดมินแก้สถานะเป็นนอกสถานที่ (offsite) → สแกนเวลาออกงานได้ (ready_checkout)', () => {
+    const offsiteShift = s('w', '09:00', '18:00', { attended: true, override: 'offsite' })
+    expect(selectShift([offsiteShift], '18:00:00')).toEqual({
+      kind: 'ready_checkout',
+      shiftId: 'w',
+    })
+  })
 })
 
 describe('QR token', () => {
   const secret = 'x'.repeat(32)
-  it('ใช้ได้ในช่วงปัจจุบันและช่วงก่อนหน้า แล้วหมดอายุ', () => {
+  it('ใช้ได้เฉพาะในช่วงปัจจุบัน และหมดอายุทันทีเมื่อเปลี่ยนรอบ', () => {
     const t0 = 1_800_000_000_000
     const { token } = issueQrToken(secret, 'key', 30, t0)
     expect(verifyQrToken(secret, 'key', 30, token, t0)).toBe(true)
-    expect(verifyQrToken(secret, 'key', 30, token, t0 + 30_000)).toBe(true)
-    expect(verifyQrToken(secret, 'key', 30, token, t0 + 60_000)).toBe(false)
+    expect(verifyQrToken(secret, 'key', 30, token, t0 + 29_000)).toBe(true)
+    expect(verifyQrToken(secret, 'key', 30, token, t0 + 30_000)).toBe(false)
   })
   it('สร้างรหัสหน้าจอใหม่แล้ว token เก่าใช้ไม่ได้', () => {
     const { token } = issueQrToken(secret, 'old', 30, 1_800_000_000_000)
@@ -152,6 +263,31 @@ describe('การเขียนตารางกะ', () => {
         { weekday: 3, startTime: '17:00', endTime: '20:00' },
       ]),
     ).toBe('จ, พ 09:30–12:00 + 17:00–20:00')
+  })
+
+  const reconcileTx = (usedToday: boolean, inserted: Record<string, unknown>[]) => ({
+    execute: async () => ({ rows: [{ shift_id: 'old', today: usedToday }] }),
+    delete: () => ({ where: async () => undefined }),
+    update: () => ({ set: () => ({ where: async () => undefined }) }),
+    insert: () => ({ values: async (rows: Record<string, unknown>[]) => { inserted.push(...rows) } }),
+  })
+
+  it('แก้กะที่ยังไม่ได้ใช้วันนี้มีผลวันนี้', async () => {
+    const inserted: Record<string, unknown>[] = []
+    const before: PlanShift[] = [{ id: 'old', employeeId: 'e1', projectId: 'p1', weekday: 1, startTime: '09:30', endTime: '18:00' }]
+    const after: PlanShift[] = [{ employeeId: 'e1', projectId: 'p1', weekday: 1, startTime: '09:30', endTime: '17:30' }]
+    const result = await reconcile(reconcileTx(false, inserted) as never, before, after, '2026-09-21')
+    expect(result).toMatchObject({ effectiveFrom: '2026-09-21', deferredBecauseTodayUsed: false })
+    expect(inserted[0]?.validFrom).toBe('2026-09-21')
+  })
+
+  it('แก้กะหลังเช็กชื่อแล้วให้กะใหม่เริ่มวันถัดไป', async () => {
+    const inserted: Record<string, unknown>[] = []
+    const before: PlanShift[] = [{ id: 'old', employeeId: 'e1', projectId: 'p1', weekday: 1, startTime: '09:30', endTime: '18:00' }]
+    const after: PlanShift[] = [{ employeeId: 'e1', projectId: 'p1', weekday: 1, startTime: '09:30', endTime: '17:30' }]
+    const result = await reconcile(reconcileTx(true, inserted) as never, before, after, '2026-09-21')
+    expect(result).toMatchObject({ effectiveFrom: '2026-09-22', deferredBecauseTodayUsed: true })
+    expect(inserted[0]?.validFrom).toBe('2026-09-22')
   })
 })
 

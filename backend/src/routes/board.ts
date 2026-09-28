@@ -68,7 +68,7 @@ export async function boardRoutes(app: FastifyInstance) {
       dateLabel: holiday ? `${thaiDateLabel(date)} · ${holiday}` : thaiDateLabel(date),
       qrToken: qr.token,
       tokenExpiresIn: s.qrTokenTtl,
-      summary: summarize(rows),
+      summary: summarize(rows, time),
       groups: boardGroups(rows, time),
       today: rows.map(({ overridden: _o, historyCount: _h, ...r }) => r),
     }

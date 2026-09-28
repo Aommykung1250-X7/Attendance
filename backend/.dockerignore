@@ -4,6 +4,7 @@ node_modules
 !.env.example
 test
 coverage
+uploads
 *.log
 *.tsbuildinfo
 .DS_Store

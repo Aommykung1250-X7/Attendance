@@ -31,6 +31,7 @@ export interface SnapState {
   status: ShiftStatus
   scannedAt: string | null
   earlyLeaveAt: string | null
+  checkedOutAt?: string | null
 }
 
 function describe(s: SnapState | null): string | null {
@@ -38,12 +39,15 @@ function describe(s: SnapState | null): string | null {
   let t = STATUS_LABEL[s.status]
   if (s.scannedAt) t += ` (สแกน ${s.scannedAt.slice(0, 5)})`
   if (s.earlyLeaveAt) t += ` · กลับก่อน ${s.earlyLeaveAt.slice(0, 5)}`
+  if (s.checkedOutAt) t += ` · ออก ${s.checkedOutAt.slice(0, 5)}`
   return t
 }
 
 const LABEL: Record<string, (a: SnapState | null, extra: Record<string, unknown>) => string> = {
   checkin: (_a, x) => `เช็กชื่อแทน เวลา ${x.time ?? ''}`,
   undo_checkin: () => 'ยกเลิกการเช็กชื่อที่กดแทน',
+  checkout: (_a, x) => `บันทึกเวลาออกแทน เวลา ${x.time ?? ''}`,
+  clear_checkout: () => 'ล้างเวลาออกงาน',
   early_leave: (_a, x) => `แจ้งกลับก่อนแทน เวลา ${x.time ?? ''}`,
   clear_early_leave: () => 'ล้างการแจ้งกลับก่อนเวลา',
   set_status: (a) => `แก้สถานะเป็น ${a ? STATUS_LABEL[a.status] : ''}`,

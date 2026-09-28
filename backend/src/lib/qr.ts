@@ -26,7 +26,7 @@ export function verifyQrToken(secret: string, displayKey: string, ttl: number, t
   if (!m) return false
   const bucket = parseInt(m[1], 36)
   const current = Math.floor(nowMs / 1000 / ttl)
-  if (bucket !== current && bucket !== current - 1) return false
+  if (bucket !== current) return false
   const expected = Buffer.from(sign(secret, displayKey, ttl, bucket))
   const got = Buffer.from(m[2])
   return expected.length === got.length && timingSafeEqual(expected, got)

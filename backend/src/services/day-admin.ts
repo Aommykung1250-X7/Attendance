@@ -13,12 +13,13 @@ export async function dayLog(date: string): Promise<DayLog> {
   const now = new Date()
   const { holiday, records } = await loadDay(date, { now, withHistory: true })
   const rows = records.map((r) => r.row)
+  const current = localParts(now)
   return {
     date,
     dateLabel: thaiDateLabel(date),
-    isToday: localParts(now).date === date,
+    isToday: current.date === date,
     holiday,
-    summary: summarize(rows),
+    summary: summarize(rows, current.date === date ? current.time : undefined),
     rows,
   }
 }
@@ -27,9 +28,10 @@ const snap = (r: InstanceRecord): SnapState => ({
   status: r.row.status,
   scannedAt: r.row.scannedAt,
   earlyLeaveAt: r.row.earlyLeaveAt,
+  checkedOutAt: r.row.checkedOutAt ?? null,
 })
 
-const OVERRIDES: OverrideStatus[] = ['leave', 'present', 'late', 'absent']
+const OVERRIDES: OverrideStatus[] = ['leave', 'present', 'late', 'absent', 'offsite']
 
 export async function adminAction(adminEmail: string, shiftId: string, date: string, act: AdminAction): Promise<DayLogRow> {
   const [shift] = await db.select().from(schema.shifts).where(eq(schema.shifts.id, shiftId))
@@ -86,15 +88,67 @@ export async function adminAction(adminEmail: string, shiftId: string, date: str
         await tx.delete(schema.attendance).where(whereAtt)
         break
       }
+      case 'checkout': {
+        if (!isHHMM(act.time)) throw badRequest('เวลาต้องอยู่ในรูป HH:MM')
+        const att = rec.attendance
+        if (!att && !['ontime', 'late', 'offsite'].includes(rec.row.status) && !['present', 'late', 'offsite'].includes(rec.override?.status ?? '')) {
+          throw badRequest('ต้องเช็กชื่อเข้าก่อน จึงจะบันทึกเวลาออกได้')
+        }
+        if (att?.earlyLeaveAt) throw badRequest('กะนี้แจ้งกลับก่อนเวลาไว้แล้ว')
+        const checkinTime = att?.scannedAt ?? zoned(date, shift.startTime)
+        const at = zoned(date, act.time)
+        if (at.getTime() < checkinTime.getTime())
+          throw badRequest(`เวลาออกต้องอยู่หลังเวลาเข้า (${clockOf(checkinTime).slice(0, 5)})`)
+        await tx
+          .insert(schema.attendance)
+          .values({
+            employeeId: shift.employeeId,
+            shiftId,
+            date,
+            scannedAt: checkinTime,
+            recordedBy: rec.override?.adminEmail ?? adminEmail,
+            checkedOutAt: at,
+            checkedOutBy: adminEmail,
+          })
+          .onConflictDoUpdate({
+            target: [schema.attendance.shiftId, schema.attendance.date],
+            set: { checkedOutAt: at, checkedOutBy: adminEmail },
+          })
+        extra.time = act.time
+        break
+      }
+      case 'clear_checkout': {
+        if (!rec.attendance?.checkedOutAt) throw badRequest('กะนี้ยังไม่ได้บันทึกเวลาออกงาน')
+        await tx.update(schema.attendance).set({ checkedOutAt: null, checkedOutBy: null }).where(whereAtt)
+        break
+      }
       case 'early_leave': {
         if (!isHHMM(act.time)) throw badRequest('เวลาต้องอยู่ในรูป HH:MM')
-        if (!rec.attendance) throw badRequest('ต้องเช็กชื่อเข้าก่อน จึงจะแจ้งกลับก่อนเวลาได้')
-        if (rec.attendance.earlyLeaveAt) throw badRequest(`แจ้งกลับก่อนไว้แล้ว เวลา ${rec.row.earlyLeaveAt}`)
+        const att = rec.attendance
+        if (!att && !['ontime', 'late', 'offsite'].includes(rec.row.status) && !['present', 'late', 'offsite'].includes(rec.override?.status ?? '')) {
+          throw badRequest('ต้องเช็กชื่อเข้าก่อน จึงจะแจ้งกลับก่อนเวลาได้')
+        }
+        if (att?.earlyLeaveAt) throw badRequest(`แจ้งกลับก่อนไว้แล้ว เวลา ${rec.row.earlyLeaveAt}`)
+        const checkinTime = att?.scannedAt ?? zoned(date, shift.startTime)
         const at = zoned(date, act.time)
-        if (at.getTime() < rec.attendance.scannedAt.getTime())
-          throw badRequest(`เวลากลับต้องอยู่หลังเวลาเข้า (${clockOf(rec.attendance.scannedAt).slice(0, 5)})`)
+        if (at.getTime() < checkinTime.getTime())
+          throw badRequest(`เวลากลับต้องอยู่หลังเวลาเข้า (${clockOf(checkinTime).slice(0, 5)})`)
         if (at.getTime() > now.getTime()) throw badRequest('เวลากลับต้องไม่อยู่ในอนาคต')
-        await tx.update(schema.attendance).set({ earlyLeaveAt: at, earlyLeaveBy: adminEmail }).where(whereAtt)
+        await tx
+          .insert(schema.attendance)
+          .values({
+            employeeId: shift.employeeId,
+            shiftId,
+            date,
+            scannedAt: checkinTime,
+            recordedBy: rec.override?.adminEmail ?? adminEmail,
+            earlyLeaveAt: at,
+            earlyLeaveBy: adminEmail,
+          })
+          .onConflictDoUpdate({
+            target: [schema.attendance.shiftId, schema.attendance.date],
+            set: { earlyLeaveAt: at, earlyLeaveBy: adminEmail },
+          })
         extra.time = act.time
         break
       }
@@ -114,11 +168,28 @@ export async function adminAction(adminEmail: string, shiftId: string, date: str
           adminEmail,
           note,
         })
+        if (['present', 'late', 'offsite'].includes(act.status) && !rec.attendance) {
+          const at = zoned(date, shift.startTime)
+          await tx
+            .insert(schema.attendance)
+            .values({
+              employeeId: shift.employeeId,
+              shiftId,
+              date,
+              scannedAt: at,
+              recordedBy: adminEmail,
+              isOffsite: act.status === 'offsite',
+            })
+            .onConflictDoNothing()
+        }
         break
       }
       case 'clear_status': {
         if (!rec.override?.status) throw badRequest('กะนี้ไม่มีสถานะที่แก้ไว้')
         await clearOverride()
+        if (rec.attendance?.recordedBy === adminEmail && !rec.attendance.checkedOutAt && !rec.attendance.earlyLeaveAt) {
+          await tx.delete(schema.attendance).where(whereAtt)
+        }
         break
       }
       default:

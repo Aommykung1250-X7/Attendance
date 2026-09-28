@@ -1,6 +1,6 @@
 {
-  "id": "b1c99f28-0bfe-45d3-a9ae-a73fd1a5fc67",
-  "prevId": "0e4eb0a5-0608-4e59-8303-40dde56eda2c",
+  "id": "cc3fa093-da4d-47cf-9a78-0bb3d1e0067f",
+  "prevId": "b1c99f28-0bfe-45d3-a9ae-a73fd1a5fc67",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -49,6 +49,13 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "is_offsite": {
+          "name": "is_offsite",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "recorded_by": {
           "name": "recorded_by",
@@ -373,6 +380,176 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.offsite_requests": {
+      "name": "offsite_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "shift_id": {
+          "name": "shift_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "task_description": {
+          "name": "task_description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "photo_path": {
+          "name": "photo_path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "latitude": {
+          "name": "latitude",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "longitude": {
+          "name": "longitude",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "location_name": {
+          "name": "location_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "offsite_request_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "reviewed_by": {
+          "name": "reviewed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reject_reason": {
+          "name": "reject_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "offsite_requests_employee_date_idx": {
+          "name": "offsite_requests_employee_date_idx",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "offsite_requests_status_date_idx": {
+          "name": "offsite_requests_status_date_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "offsite_requests_employee_id_employees_id_fk": {
+          "name": "offsite_requests_employee_id_employees_id_fk",
+          "tableFrom": "offsite_requests",
+          "tableTo": "employees",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "offsite_requests_shift_id_shifts_id_fk": {
+          "name": "offsite_requests_shift_id_shifts_id_fk",
+          "tableFrom": "offsite_requests",
+          "tableTo": "shifts",
+          "columnsFrom": [
+            "shift_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.projects": {
       "name": "projects",
       "schema": "",
@@ -508,6 +685,12 @@
           "type": "integer",
           "primaryKey": false,
           "notNull": true
+        },
+        "line_oa_url": {
+          "name": "line_oa_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -806,6 +989,15 @@
         "student"
       ]
     },
+    "public.offsite_request_status": {
+      "name": "offsite_request_status",
+      "schema": "public",
+      "values": [
+        "pending",
+        "approved",
+        "rejected"
+      ]
+    },
     "public.override_status": {
       "name": "override_status",
       "schema": "public",
@@ -813,7 +1005,8 @@
         "leave",
         "present",
         "late",
-        "absent"
+        "absent",
+        "offsite"
       ]
     }
   },

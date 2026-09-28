@@ -9,12 +9,13 @@ import type { Employee, MonthlyReport, ShiftInstance } from '../../lib/types'
 import { StatusPill } from '../../components/StatusPill'
 import { Button, Card, Checkbox, Empty, ErrorNote, Field, Loading, PageHeader, Select, cx } from '../../components/ui'
 
-type Focus = 'all' | 'late' | 'leave' | 'absent' | 'earlyLeave' | 'present'
+type Focus = 'all' | 'late' | 'leave' | 'absent' | 'earlyLeave' | 'present' | 'offsite'
 
 const match = (e: ShiftInstance, f: Focus) =>
   f === 'all' ||
-  (f === 'present' && (e.status === 'ontime' || e.status === 'late')) ||
+  (f === 'present' && (e.status === 'ontime' || e.status === 'late' || e.status === 'offsite')) ||
   (f === 'earlyLeave' && !!e.earlyLeaveAt) ||
+  (f === 'leave' && !!e.leavePortion) ||
   e.status === f
 
 export default function Report() {
@@ -110,13 +111,17 @@ export default function Report() {
             <span className="text-[15px] text-text-dim">{monthLabel(report.month)}</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-px overflow-hidden panel bg-rule rounded-2xl sm:grid-cols-5">
+          <div className="panel grid grid-cols-2 gap-px overflow-hidden rounded-2xl bg-rule sm:grid-cols-3 lg:grid-cols-6">
             <Total label="มาทำงาน" focus="present" current={focus} setFocus={setFocus}>
               {report.totals.present}
               <span className="text-lg font-medium text-text-dim"> / {report.totals.workdays} วัน</span>
             </Total>
+            <Total label="นอกสถานที่" unit="ครั้ง" tone="text-purple-600" focus="offsite" current={focus} setFocus={setFocus} n={report.totals.offsite ?? 0} />
             <Total label="สาย" unit="ครั้ง" tone="text-late" focus="late" current={focus} setFocus={setFocus} n={report.totals.late} />
-            <Total label="ลา" unit="ครั้ง" tone="text-leave" focus="leave" current={focus} setFocus={setFocus} n={report.totals.leave} />
+            <Total label="ลา" tone="text-leave" focus="leave" current={focus} setFocus={setFocus}>
+              {report.totals.leaveFullDays ?? report.totals.leave}
+              <span className="ml-1 text-xs font-medium text-text-dim">เต็ม · เช้า {report.totals.leaveMornings ?? 0} · บ่าย {report.totals.leaveAfternoons ?? 0}</span>
+            </Total>
             <Total label="ขาด" unit="ครั้ง" tone="text-absent" focus="absent" current={focus} setFocus={setFocus} n={report.totals.absent} />
             <Total label="กลับก่อนเวลา" unit="ครั้ง" tone="text-late" focus="earlyLeave" current={focus} setFocus={setFocus} n={report.totals.earlyLeave} />
           </div>
@@ -147,7 +152,7 @@ export default function Report() {
   )
 }
 
-const FOCUS_LABEL: Record<Focus, string> = { all: '', present: 'มา', late: 'สาย', leave: 'ลา', absent: 'ขาด', earlyLeave: 'กลับก่อนเวลา' }
+const FOCUS_LABEL: Record<Focus, string> = { all: '', present: 'มา', offsite: 'นอกสถานที่', late: 'สาย', leave: 'ลา', absent: 'ขาด', earlyLeave: 'กลับก่อนเวลา' }
 
 function Total({
   label,
@@ -198,6 +203,7 @@ function DayRow({ day, focus, open, onToggle }: { day: MonthlyReport['days'][num
             <span key={e.shiftId} className={cx('tnum text-sm', focus !== 'all' && !match(e, focus) && 'opacity-40')}>
               <span className="text-text-dim">{e.startTime}</span> {e.scannedAt ? `เข้า ${e.scannedAt.slice(0, 5)}` : '—'}
               {e.earlyLeaveAt && <span className="ml-1.5 text-late">กลับ {e.earlyLeaveAt.slice(0, 5)}</span>}
+              {e.checkedOutAt && <span className="ml-1.5 text-text-dim">ออก {e.checkedOutAt.slice(0, 5)}</span>}
             </span>
           ))}
         </span>
@@ -215,6 +221,7 @@ function DayRow({ day, focus, open, onToggle }: { day: MonthlyReport['days'][num
                 <th className="py-2 pr-3 font-medium">กะ</th>
                 <th className="py-2 pr-3 font-medium">โปรเจก</th>
                 <th className="py-2 pr-3 font-medium">เวลาเข้า</th>
+                <th className="py-2 pr-3 font-medium">เวลาออก</th>
                 <th className="py-2 pr-3 font-medium">กลับก่อน</th>
                 <th className="py-2 pr-3 font-medium">สถานะ</th>
                 <th className="py-2 font-medium">หมายเหตุ</th>
@@ -230,6 +237,10 @@ function DayRow({ day, focus, open, onToggle }: { day: MonthlyReport['days'][num
                   <td className="tnum py-2 pr-3">
                     {e.scannedAt ?? '—'}
                     {e.recordedBy && <span className="block text-[12px] text-text-dim">{e.recordedBy === 'self' ? 'สแกนเอง' : 'แอดมินกดแทน'}</span>}
+                  </td>
+                  <td className="tnum py-2 pr-3">
+                    {e.checkedOutAt ?? '—'}
+                    {e.checkedOutBy && <span className="block text-[12px] text-text-dim">{e.checkedOutBy === 'self' ? 'สแกนเอง' : 'แอดมินกดแทน'}</span>}
                   </td>
                   <td className="tnum py-2 pr-3">{e.earlyLeaveAt ?? '—'}</td>
                   <td className="py-2 pr-3">

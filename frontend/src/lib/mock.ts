@@ -17,6 +17,9 @@ import type {
   MonthlyReport,
   Project,
   Shift,
+  AppSettings,
+  LeaveRequest,
+  OffsiteRequest,
   ShiftEntry,
   ShiftStatus,
 } from './types'
@@ -75,12 +78,48 @@ setShifts('e11', 'p1', wk([1, 2, 3, 4, 5, 6, 7], '09:00', '18:00'))
 setShifts('e12', 'p3', wk([1, 2, 3, 4, 5, 6, 7], '13:00', '17:00'))
 
 const holidays: Holiday[] = [{ date: '2026-10-13', name: 'วันคล้ายวันสวรรคต ร.9' }]
-const settings = { displayKey: 'demo', displayUrl: `${location.origin}/display/demo`, qrTokenTtl: 30 }
+const settings: AppSettings = {
+  displayKey: 'demo',
+  displayUrl: `${location.origin}/display/demo`,
+  qrTokenTtl: 30,
+  lineOaUrl: 'https://line.me',
+  lateGraceMinutes: 0,
+  autoCheckoutMode: 'after_shift_5m',
+  officeLatitude: 18.800523577253724,
+  officeLongitude: 98.95073601100776,
+  checkinRadiusMeters: 200,
+  maxLocationAccuracyMeters: 100,
+}
+
+const mockOffsiteRequests: OffsiteRequest[] = [
+  {
+    kind: 'offsite',
+    id: 'off-1',
+    employeeId: 'e1',
+    shiftId: 's1',
+    date: todayISO(),
+    taskDescription: 'ออกไปพบลูกค้าที่สุขุมวิท และติดตั้งระบบทดสอบ',
+    photoPath: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=600&auto=format&fit=crop&q=80',
+    locationName: 'สุขุมวิท ซอย 23',
+    status: 'pending',
+    reviewedBy: null,
+    reviewedAt: null,
+    rejectReason: null,
+    createdAt: new Date(Date.now() - 3600_000).toISOString(),
+    nickname: 'ต้น',
+    gen: null,
+    projectName: 'TurnPRO',
+    startTime: '09:00',
+    endTime: '18:00',
+  },
+]
 
 interface State {
   scannedAt: string | null
   earlyLeaveAt: string | null
+  checkedOutAt: string | null
   recordedBy: 'self' | 'admin' | null
+  checkedOutBy?: 'self' | 'admin' | 'system' | null
   override: ShiftStatus | null
   note: string | null
   history: AuditEntry[]
@@ -90,17 +129,18 @@ interface State {
 const state = new Map<string, State>()
 // เจถูกตัดเป็น "ขาด" วันนี้ ไว้ดูแถวขาด (ชื่อแดง + ป้าย "ขาด") ในการ์ด "ยังไม่มา" บนจอ Kiosk
 for (const s of shifts.filter((x) => x.employeeId === 'e10')) {
-  state.set(`${s.id}|${todayISO()}`, { scannedAt: null, earlyLeaveAt: null, recordedBy: null, override: 'absent', note: 'ไม่มาและติดต่อไม่ได้', history: [] })
+  state.set(`${s.id}|${todayISO()}`, { scannedAt: null, earlyLeaveAt: null, checkedOutAt: null, recordedBy: null, override: 'absent', note: 'ไม่มาและติดต่อไม่ได้', history: [] })
 }
 // มายด์ลาวันนี้ ไว้ดูการ์ด "ลา" บนจอ Kiosk
 for (const s of shifts.filter((x) => x.employeeId === 'e12')) {
-  state.set(`${s.id}|${todayISO()}`, { scannedAt: null, earlyLeaveAt: null, recordedBy: null, override: 'leave', note: 'ลาป่วย', history: [] })
+  state.set(`${s.id}|${todayISO()}`, { scannedAt: null, earlyLeaveAt: null, checkedOutAt: null, recordedBy: null, override: 'leave', note: 'ลาป่วย', history: [] })
 }
-// พลอยแจ้งทำงานนอกสถานที่วันนี้ ไว้ดูแถวสีม่วงในการ์ด "มาแล้ว" บนจอ Kiosk
+// พลอยแจ้งทำงานนอกสถานที่วันนี้ ไว้ดูป้ายนอกสถานที่บนจอ Kiosk
 for (const s of shifts.filter((x) => x.employeeId === 'e11')) {
   state.set(`${s.id}|${todayISO()}`, {
     scannedAt: '08:52:10',
     earlyLeaveAt: null,
+    checkedOutAt: null,
     recordedBy: 'self',
     override: null,
     note: null,
@@ -126,7 +166,7 @@ function stateFor(shift: Shift, date: string): State {
   const nowMin = minutesOf(`${now.hh}:${now.mm}`)
   const start = minutesOf(shift.startTime)
   const h = hash(key) % 100
-  let s: State = { scannedAt: null, earlyLeaveAt: null, recordedBy: null, override: null, note: null, history: [] }
+  let s: State = { scannedAt: null, earlyLeaveAt: null, checkedOutAt: null, recordedBy: null, override: null, note: null, history: [] }
   const pastOrStarted = date < today || (date === today && nowMin > start - 20)
   if (pastOrStarted && h < 88) {
     const offset = h < 70 ? -(h % 25) - 1 : (h % 14) + 1
@@ -160,7 +200,7 @@ function rowsFor(date: string, employeeId?: string): DayLogRow[] {
   const wd = weekdayOf(date)
   return shifts
     .filter((s) => s.weekday === wd && (!employeeId || s.employeeId === employeeId))
-    .map((s) => {
+    .map<DayLogRow | null>((s) => {
       const e = employees.find((x) => x.id === s.employeeId)!
       if (!e.isActive) return null
       const st = stateFor(s, date)
@@ -174,14 +214,17 @@ function rowsFor(date: string, employeeId?: string): DayLogRow[] {
         endTime: s.endTime,
         scannedAt: st.scannedAt,
         earlyLeaveAt: st.earlyLeaveAt,
+        checkedOutAt: st.checkedOutAt,
         status: statusOf(s, date, st),
         recordedBy: st.recordedBy,
+        checkedOutBy: st.checkedOutBy ?? null,
+        leavePortion: null,
         adminNote: st.override ? st.note : null,
         offsite: !!st.offsite,
         offsiteNote: st.offsite ? (st.offsiteNote ?? null) : null,
         overridden: !!st.override,
         historyCount: st.history.length,
-      } satisfies DayLogRow
+      }
     })
     .filter((x): x is DayLogRow => !!x)
     .sort((a, b) => minutesOf(a.startTime) - minutesOf(b.startTime) || a.nickname.localeCompare(b.nickname, 'th'))
@@ -210,6 +253,8 @@ function demoView(n: number): CheckInView {
     { kind: 'all_done', nickname: 'ต้น' },
     { kind: 'not_registered', email: 'someone.else@gmail.com' },
     { kind: 'expired' },
+    { kind: 'ready_checkout', nickname: 'ต้น', shift: s, scannedAt: '18:00:01' },
+    { kind: 'checkout_done', nickname: 'ต้น', shift: { ...s, checkedOutAt: '18:00:01' } },
   ]
   return views[n] ?? views[0]
 }
@@ -224,6 +269,8 @@ function applySchedule(employeeId: string, projectId: string, entries: ShiftEntr
   return {
     schedule: scheduleOf(employeeId),
     replaced: replaced.map((r) => ({ projectName: projects.find((p) => p.id === r.projectId)!.name, weekday: r.weekday, startTime: r.startTime, endTime: r.endTime })),
+    effectiveFrom: todayISO(),
+    deferredBecauseTodayUsed: false,
   }
 }
 
@@ -237,7 +284,7 @@ function scheduleOf(id: string) {
   return { employee, assignments }
 }
 
-export const mockApi: Api = {
+export const mockApi = {
   board: async () => {
     const date = todayISO()
     const rows = rowsFor(date)
@@ -270,6 +317,7 @@ export const mockApi: Api = {
     const v = demoView(1)
     return wait(v.kind === 'done' ? { ...v, shift: { ...v.shift, offsite: true, offsiteNote: note.trim() } } : v, 500)
   },
+  confirmCheckOut: async () => wait(demoView(11), 500),
 
   me: async () => wait({ email: 'admin@example.com', name: 'แอดมิน (จำลอง)', isAdmin: true, employee: null }),
   logout: async () => wait({ ok: true as const }),
@@ -292,6 +340,8 @@ export const mockApi: Api = {
     const label: Record<AdminAction['action'], string> = {
       checkin: 'เช็กชื่อแทน',
       undo_checkin: 'ยกเลิกการเช็กชื่อที่กดแทน',
+      checkout: 'บันทึกเวลาออกแทน',
+      clear_checkout: 'ล้างเวลาออกงาน',
       early_leave: 'แจ้งกลับก่อนแทน',
       clear_early_leave: 'ล้างการแจ้งกลับก่อนเวลา',
       set_status: 'แก้สถานะ',
@@ -302,6 +352,8 @@ export const mockApi: Api = {
       if (st.recordedBy === 'self') throw new ApiError(400, 'การเช็กชื่อนี้พนักงานสแกนเอง ลบไม่ได้')
       Object.assign(st, { scannedAt: null, recordedBy: null })
     }
+    if (a.action === 'checkout') Object.assign(st, { checkedOutAt: `${a.time}:00`, checkedOutBy: 'admin' })
+    if (a.action === 'clear_checkout') Object.assign(st, { checkedOutAt: null, checkedOutBy: null })
     if (a.action === 'early_leave') st.earlyLeaveAt = `${a.time}:00`
     if (a.action === 'clear_early_leave') st.earlyLeaveAt = null
     if (a.action === 'set_status') Object.assign(st, { override: a.status === 'present' ? 'ontime' : a.status, note: a.note || null })
@@ -458,7 +510,9 @@ export const mockApi: Api = {
 
   settings: async () => wait(settings),
   updateSettings: async (s) => {
-    settings.qrTokenTtl = s.qrTokenTtl
+    if (s.qrTokenTtl !== undefined) settings.qrTokenTtl = s.qrTokenTtl
+    if (s.lineOaUrl !== undefined) settings.lineOaUrl = s.lineOaUrl
+    if (s.autoCheckoutMode !== undefined) settings.autoCheckoutMode = s.autoCheckoutMode
     return wait(settings)
   },
   rotateDisplayKey: async () => {
@@ -476,4 +530,73 @@ export const mockApi: Api = {
     holidays.splice(holidays.findIndex((h) => h.date === date), 1)
     return wait({ ok: true as const })
   },
-}
+
+  requestOverview: async () => {
+    const emp = employees[0]
+    return wait({
+      employee: emp,
+      date: todayISO(),
+      time: '09:15:00',
+      holiday: null,
+      shifts: [],
+      requests: mockOffsiteRequests.filter((r) => r.employeeId === emp.id),
+    })
+  },
+  submitRequestOffsite: async (fd: FormData) => {
+    const shiftId = String(fd.get('shiftId') || 's1')
+    const taskDescription = String(fd.get('taskDescription') || '')
+    const locationName = String(fd.get('locationName') || '')
+    const emp = employees[0]
+    const req: OffsiteRequest = {
+      kind: 'offsite',
+      id: `off-${Date.now()}`,
+      employeeId: emp.id,
+      shiftId,
+      date: todayISO(),
+      taskDescription,
+      photoPath: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=600&auto=format&fit=crop&q=80',
+      locationName: locationName || null,
+      status: 'pending',
+      reviewedBy: null,
+      reviewedAt: null,
+      rejectReason: null,
+      createdAt: new Date().toISOString(),
+      nickname: emp.nickname,
+      gen: emp.gen,
+      projectName: 'TurnPRO',
+      startTime: '09:00',
+      endTime: '18:00',
+    }
+    mockOffsiteRequests.unshift(req)
+    return wait(req, 400)
+  },
+  submitLeaveRequest: async (body) => {
+    const get = (key: string) => body instanceof FormData ? String(body.get(key) ?? '') : String(body[key] ?? '')
+    const request: LeaveRequest = {
+      kind: 'leave', id: `leave-${Date.now()}`, employeeId: employees[0].id,
+      startDate: get('startDate'), endDate: get('endDate'), duration: get('duration') as LeaveRequest['duration'],
+      leaveType: (get('leaveType') || null) as LeaveRequest['leaveType'], reason: get('reason'),
+      medicalCertificatePath: null, medicalCertificatePending: get('medicalCertificatePending') === 'true', medicalCertificateReceivedAt: null,
+      status: 'pending', reviewedBy: null, reviewedAt: null, rejectReason: null, cancelledAt: null,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), nickname: employees[0].nickname, days: [],
+    }
+    return wait(request)
+  },
+  cancelRequest: async () => wait({ ok: true as const }),
+  uploadMedicalCertificate: async () => { throw new ApiError(501, 'โหมดตัวอย่างไม่รองรับการอัปโหลด') },
+  requestOffsiteCheckout: async () => wait({ ok: true as const }),
+  adminRequests: async (status, kind) => wait(mockOffsiteRequests.filter((r) => (!status || r.status === status) && (!kind || r.kind === kind))),
+  reviewRequest: async (_kind, id, action, rejectReason) => {
+    const req = mockOffsiteRequests.find((r) => r.id === id)
+    if (!req) throw new Error('Not found')
+    req.status = action === 'approve' ? 'approved' : 'rejected'
+    req.reviewedBy = 'admin@example.com'
+    req.reviewedAt = new Date().toISOString()
+    req.rejectReason = rejectReason || null
+    return wait(req, 300)
+  },
+  adminCreateLeave: async () => { throw new ApiError(501, 'โหมดตัวอย่างไม่รองรับรายการนี้') },
+  adminUpdateLeave: async () => { throw new ApiError(501, 'โหมดตัวอย่างไม่รองรับรายการนี้') },
+  adminCancelLeave: async () => { throw new ApiError(501, 'โหมดตัวอย่างไม่รองรับรายการนี้') },
+  markMedicalReceived: async () => { throw new ApiError(501, 'โหมดตัวอย่างไม่รองรับรายการนี้') },
+} satisfies Partial<Api>

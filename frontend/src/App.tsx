@@ -13,6 +13,8 @@ import ProjectDetail from './pages/admin/ProjectDetail'
 import ImportExcel from './pages/admin/ImportExcel'
 import Report from './pages/admin/Report'
 import Settings from './pages/admin/Settings'
+import RequestPage from './pages/Request'
+import Requests from './pages/admin/Requests'
 import { loginUrl } from './lib/api'
 
 export default function App() {
@@ -33,9 +35,11 @@ function AppRoutes() {
         <Route path="/display/:displayKey" element={<Kiosk />} />
         <Route path="/checkin" element={<CheckIn />} />
         <Route path="/offsite" element={<Offsite />} />
+        <Route path="/request" element={<RequestPage />} />
         <Route path="/auth/error" element={<AuthError />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Today />} />
+          <Route path="requests" element={<Requests />} />
           <Route path="employees" element={<Employees />} />
           <Route path="employees/:id" element={<EmployeeDetail />} />
           <Route path="projects" element={<Projects />} />
@@ -66,6 +70,9 @@ function Home() {
     <Plain title="ระบบเช็กชื่อเข้างาน" body="พนักงานเช็กชื่อด้วยการสแกน QR ที่จอในออฟฟิศ ไม่ต้องเปิดหน้านี้">
       <Link to="/offsite" className="text-[15px] font-medium text-text underline underline-offset-4">
         วันนี้ทำงานนอกสถานที่ เช็กชื่อที่นี่
+      </Link>
+      <Link to="/request" className="text-[15px] font-medium text-text underline underline-offset-4">
+        ส่งคำขอลาหรือทำงานนอกสถานที่
       </Link>
       <Link to="/admin" className="text-[15px] font-medium text-text underline underline-offset-4">
         เข้าหน้าแอดมิน

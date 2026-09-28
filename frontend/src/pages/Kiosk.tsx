@@ -77,21 +77,27 @@ export default function Kiosk() {
   }, [token])
 
   const b = useMemo(() => bangkok(now), [now])
+  const nowMin = minutesOf(`${b.hh}:${b.mm}`)
   const rows = board?.today ?? []
   const { pending, arrived, leave, absent, multiShift } = useMemo(() => {
     const byStart = (x: ShiftInstance, y: ShiftInstance) => minutesOf(x.startTime) - minutesOf(y.startTime) || x.nickname.localeCompare(y.nickname, 'th')
+    const afternoon = nowMin >= 13 * 60
+    const activeLeave = (r: ShiftInstance) =>
+      r.leavePortion === 'full_day' ||
+      (r.leavePortion === 'morning' && !afternoon) ||
+      (r.leavePortion === 'afternoon' && afternoon)
     // คนที่มีหลายกะในวันเดียว ต้องบอกให้ชัดว่ารายการไหนเป็นรอบไหน
     const count = new Map<string, number>()
     for (const r of rows) count.set(r.employeeId, (count.get(r.employeeId) ?? 0) + 1)
     return {
-      pending: rows.filter((r) => r.status === 'pending').sort(byStart),
+      pending: rows.filter((r) => r.status === 'pending' && !activeLeave(r)).sort(byStart),
       // คนที่เพิ่งสแกนอยู่บนสุด คนที่ยืนอยู่หน้าจอจะเห็นชื่อตัวเองขึ้นทันที
-      arrived: rows.filter((r) => r.status === 'ontime' || r.status === 'late').sort((x, y) => (y.scannedAt ?? '').localeCompare(x.scannedAt ?? '')),
-      leave: rows.filter((r) => r.status === 'leave'),
+      arrived: rows.filter((r) => ['ontime', 'late', 'offsite'].includes(r.status) && !activeLeave(r)).sort((x, y) => (y.scannedAt ?? '').localeCompare(x.scannedAt ?? '')),
+      leave: rows.filter((r) => r.status === 'leave' || activeLeave(r)),
       absent: rows.filter((r) => r.status === 'absent'),
       multiShift: new Set([...count].filter(([, n]) => n > 1).map(([id]) => id)),
     }
-  }, [rows])
+  }, [rows, nowMin])
 
   // นับถอยหลังถึงรอบเปลี่ยน QR: token แบ่งช่วงตาม floor(วินาทีของเซิร์ฟเวอร์ / ttl) (backend/src/lib/qr.ts)
   // now เดินตามนาฬิกาเซิร์ฟเวอร์อยู่แล้ว จึงคำนวณจุดเปลี่ยนรอบได้ตรงกับที่เซิร์ฟเวอร์ใช้จริง
@@ -107,10 +113,10 @@ export default function Kiosk() {
     pullRef.current()
   }, [bucket])
 
+  const fullscreen = useFullscreen()
   useWakeLock()
   const mascotEvent = useMascotEvent({ board, arrived, leave, absent })
 
-  const nowMin = minutesOf(`${b.hh}:${b.mm}`)
   const roundOf = (r: ShiftInstance) => (multiShift.has(r.employeeId) ? `${r.startTime}–${r.endTime}` : null)
 
   return (
@@ -128,6 +134,11 @@ export default function Kiosk() {
 
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <StatChips summary={board?.summary} />
+          {!fullscreen.active && fullscreen.supported && (
+            <button onClick={fullscreen.enter} className="panel rounded-full px-4 py-2 text-[14px] font-medium text-text-dim hover:text-text">
+              เต็มจอ
+            </button>
+          )}
         </div>
       </header>
 
@@ -432,7 +443,8 @@ function ArrivedCard({ rows, roundOf }: { rows: ShiftInstance[]; roundOf: (r: Sh
           {rows.map((r, i) => {
             const latest = i === 0
             const late = r.status === 'late'
-            const offsite = r.offsite
+            const offsite = r.offsite || r.status === 'offsite'
+            const exitedAt = r.checkedOutAt ?? r.earlyLeaveAt
             const round = roundOf(r)
             return (
               <li
@@ -455,9 +467,10 @@ function ArrivedCard({ rows, roundOf }: { rows: ShiftInstance[]; roundOf: (r: Sh
                 <Tag line="border-k-blue-tag-line">{tagOf(r)}</Tag>
                 {round && <Tag line="border-k-blue-tag-line">รอบ {round}</Tag>}
                 {offsite && <Tag line="border-k-blue-tag-line">นอกสถานที่</Tag>}
+                {exitedAt && <Tag line="border-k-blue-tag-line">{r.earlyLeaveAt && !r.checkedOutAt ? 'ออกก่อนเวลา' : 'ออกงานแล้ว'}</Tag>}
                 <span className="ml-auto flex shrink-0 items-baseline gap-2">
                   {late && <span className="text-[calc(14*var(--u))] font-semibold text-k-orange">สาย</span>}
-                  <span className="tnum text-[calc(18*var(--u))] font-semibold text-k-blue">{hhmm(r.scannedAt)}</span>
+                  <span className="tnum text-[calc(18*var(--u))] font-semibold text-k-blue">{hhmm(exitedAt ?? r.scannedAt)}</span>
                 </span>
               </li>
             )
@@ -563,6 +576,20 @@ function IconAbsent(props: SVGProps<SVGSVGElement>) {
 // ---------------------------------------------------------------------------
 // hooks
 // ---------------------------------------------------------------------------
+
+function useFullscreen() {
+  const [active, setActive] = useState(() => !!document.fullscreenElement)
+  useEffect(() => {
+    const onChange = () => setActive(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+  return {
+    active,
+    supported: !!document.documentElement.requestFullscreen,
+    enter: () => document.documentElement.requestFullscreen?.().catch(() => {}),
+  }
+}
 
 /**
  * กันจอดับเองระหว่างเปิดหน้านี้ (Chrome, Edge, Safari 16.4+)

@@ -6,6 +6,7 @@ const TEXT: Record<ShiftStatus, string> = {
   absent: 'text-absent',
   leave: 'text-leave',
   pending: 'text-pending',
+  offsite: 'text-arrived-offsite-text',
 }
 
 const PILL: Record<ShiftStatus, string> = {
@@ -14,6 +15,7 @@ const PILL: Record<ShiftStatus, string> = {
   absent: 'bg-absent-bg text-absent-ink',
   leave: 'bg-leave-bg text-leave-ink',
   pending: 'bg-pending-bg text-pending-ink',
+  offsite: 'bg-arrived-offsite-bg text-arrived-offsite-text',
 }
 
 const DOT: Record<ShiftStatus, string> = {
@@ -22,6 +24,7 @@ const DOT: Record<ShiftStatus, string> = {
   absent: 'bg-absent',
   leave: 'bg-leave',
   pending: 'bg-transparent ring-[1.5px] ring-pending ring-inset',
+  offsite: 'bg-arrived-offsite-text',
 }
 
 /** สถานะแบบข้อความมีจุดนำหน้า ใช้บนจอติดผนัง (ตัวหนังสือสีอ่อนสำหรับพื้นกระจก) */
