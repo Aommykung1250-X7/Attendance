@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api, ApiError, loginUrl } from '../lib/api'
 import { Button } from '../components/ui'
+import { safeHttpsUrl } from '../lib/settingsRules'
 import { STATUS_LABEL, type CheckInView } from '../lib/types'
 
 /**
@@ -261,7 +262,7 @@ function Body({
               กรุณากรอกแบบฟอร์มรีเฟล็กซ์ประจำวันผ่าน LINE Official Account ของออฟฟิศ
             </p>
             <a
-              href={view.lineOaUrl || 'https://line.me'}
+              href={safeHttpsUrl(view.lineOaUrl) ?? 'https://line.me'}
               target="_blank"
               rel="noreferrer"
               className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#06C755] px-4 font-medium text-white shadow-sm hover:brightness-105 active:scale-[0.98] transition-all"

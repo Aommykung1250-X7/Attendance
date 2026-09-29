@@ -6,7 +6,7 @@ import { isAdminEmail } from '../config.js'
 import { db, schema } from '../db/index.js'
 import { asBody, badRequest, notFound } from '../lib/http.js'
 import { currentAuth } from '../lib/sessions.js'
-import { localParts } from '../lib/time.js'
+import { isValidMonth, localParts } from '../lib/time.js'
 import { findActiveEmployee } from '../services/checkin.js'
 import {
   adminCancelLeave,
@@ -28,6 +28,7 @@ import {
   listAdminOffsiteRequests,
   reviewOffsiteRequest,
 } from '../services/offsite.js'
+import { monthlyReport } from '../services/report.js'
 import { requireAdmin } from './auth.js'
 
 function loginRequired(reply: FastifyReply) {
@@ -84,6 +85,18 @@ export async function requestRoutes(app: FastifyInstance) {
     ])
     const ownOffsites = allOffsites.filter((request) => request.employeeId === employee.id)
     return { ...offsite, requests: [...leaves, ...ownOffsites].sort((a, b) => b.createdAt.localeCompare(a.createdAt)) }
+  })
+
+  // ประวัติเช็กชื่อรายเดือนของตัวเอง ใช้ตรรกะเดียวกับรายงานฝั่งแอดมิน
+  app.get('/api/requests/me/report', async (req, reply) => {
+    reply.header('Cache-Control', 'no-store')
+    const auth = await currentAuth(req, reply)
+    if (!auth) return loginRequired(reply)
+    const employee = await findActiveEmployee(auth.data.email)
+    if (!employee) throw notFound('ไม่พบพนักงานบัญชีนี้ในระบบ')
+    const month = (req.query as { month?: string }).month ?? localParts(new Date()).date.slice(0, 7)
+    if (!isValidMonth(month)) throw badRequest('เดือนต้องอยู่ในรูป YYYY-MM')
+    return monthlyReport(employee.id, month)
   })
 
   app.post('/api/requests/leave', async (req, reply) => {

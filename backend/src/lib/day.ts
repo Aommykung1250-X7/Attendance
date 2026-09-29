@@ -1,7 +1,7 @@
 // ประกอบ "กะของวัน" จากตาราง shifts + attendance + status_overrides แล้วคำนวณสถานะตอนอ่าน
 
 import { and, asc, count, eq, gte, inArray, isNull, lte, or, gt } from 'drizzle-orm'
-import type { DayLogRow, KioskBoard, LeaveDuration, OverrideStatus } from '../contract.js'
+import type { DayLogRow, KioskBoard, LeaveDuration, LeaveType, OverrideStatus } from '../contract.js'
 import { db, schema, type Tx } from '../db/index.js'
 import type { AttendanceRow, EmployeeRow, OverrideRow, ShiftRow } from '../db/schema.js'
 import { computeStatus } from './status.js'
@@ -85,7 +85,7 @@ export async function loadRange(
   for (const o of ovRows) ov.set(`${o.shiftId}|${o.date}`, o) // แถวหลังทับแถวก่อน = ค่าล่าสุด
 
   const leaveRows = await q
-    .select({ day: schema.leaveRequestDays })
+    .select({ day: schema.leaveRequestDays, leaveType: schema.leaveRequests.leaveType })
     .from(schema.leaveRequestDays)
     .innerJoin(schema.leaveRequests, eq(schema.leaveRequestDays.leaveRequestId, schema.leaveRequests.id))
     .where(
@@ -97,6 +97,7 @@ export async function loadRange(
       ),
     )
   const leaves = new Map(leaveRows.map(({ day }) => [`${day.shiftId}|${day.date}`, day.portion as LeaveDuration]))
+  const leaveTypes = new Map(leaveRows.map(({ day, leaveType }) => [`${day.shiftId}|${day.date}`, (leaveType ?? null) as LeaveType | null]))
 
   const history = new Map<string, number>()
   if (opts.withHistory) {
@@ -159,6 +160,7 @@ export async function loadRange(
                 : 'admin'
             : null,
           leavePortion,
+          leaveType: leaveTypes.get(key) ?? null,
           adminNote: o?.status ? o.note || null : null,
           overridden: !!overrideStatus,
           historyCount: history.get(key) ?? 0,

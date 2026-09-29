@@ -62,6 +62,8 @@ export interface ShiftInstance {
   recordedBy: 'self' | 'admin' | null
   checkedOutBy: 'self' | 'admin' | 'system' | null
   leavePortion: LeaveDuration | null
+  /** ประเภทลาจากใบลาที่อนุมัติแล้ว (ลาที่แอดมินกดให้เองไม่มี ดู adminNote แทน) */
+  leaveType?: LeaveType | null
   adminNote: string | null
 }
 
