@@ -509,7 +509,7 @@ function Holidays({ onToast }: { onToast: (m: string) => void }) {
       ) : list.length === 0 ? (
         <p className="mt-5 text-[15px] text-text-dim">ยังไม่มีวันหยุดในปี {year + 543}</p>
       ) : (
-        <ul className="mt-4 divide-y divide-rule border-t border-rule">
+        <ul className="mt-4 max-h-[14.25rem] divide-y divide-rule overflow-y-auto overscroll-contain border-y border-rule">
           {list.map((h) => (
             <li key={h.date} className="flex items-center justify-between gap-3 py-2.5">
               <span>
