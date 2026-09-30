@@ -578,6 +578,12 @@ export const mockApi = {
   },
   resetAttendance: async () => wait({ ok: true as const, deletedAttendance: 24, deletedOverrides: 5 }, 500),
   holidays: async (year) => wait(holidays.filter((h) => !year || h.date.startsWith(year)).sort((a, b) => a.date.localeCompare(b.date))),
+  previewHolidayCalendar: async () => {
+    throw new ApiError(503, 'โหมดข้อมูลจำลองไม่รองรับการนำเข้าปฏิทิน')
+  },
+  commitHolidayCalendar: async () => {
+    throw new ApiError(503, 'โหมดข้อมูลจำลองไม่รองรับการนำเข้าปฏิทิน')
+  },
   addHoliday: async (h) => {
     const existing = holidays.find((x) => x.date === h.date)
     if (existing) throw new ApiError(409, `วันที่นี้เป็นวันหยุด "${existing.name}" อยู่แล้ว`)

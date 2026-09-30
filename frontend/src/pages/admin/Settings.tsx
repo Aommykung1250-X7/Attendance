@@ -1,11 +1,11 @@
 // ตั้งค่า: ลิงก์หน้าจอในออฟฟิศ อายุ QR และวันหยุด (spec 9.8)
 
 import { useEffect, useState } from 'react'
-import { api } from '../../lib/api'
+import { api, type HolidayImportPreview } from '../../lib/api'
 import { shortDate } from '../../lib/format'
 import { coordError, INT_RULES, intError, lineOaUrlError } from '../../lib/settingsRules'
 import type { AppSettings, AutoCheckoutMode, Holiday } from '../../lib/types'
-import { Button, Card, ErrorNote, Field, Input, Loading, PageHeader } from '../../components/ui'
+import { Button, Card, Checkbox, ErrorNote, Field, Input, Loading, PageHeader } from '../../components/ui'
 import { Toast, useNotify } from '../../components/notify'
 
 export default function Settings() {
@@ -306,9 +306,18 @@ function Holidays({ onToast }: { onToast: (m: string) => void }) {
   const [date, setDate] = useState('')
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [calendarFile, setCalendarFile] = useState<File | null>(null)
+  const [preview, setPreview] = useState<HolidayImportPreview | null>(null)
+  const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set())
+  const [importBusy, setImportBusy] = useState<'preview' | 'commit' | null>(null)
+  const [fileInputKey, setFileInputKey] = useState(0)
 
   const load = () => api.holidays(String(year)).then(setList).catch((e) => setError(e.message))
   useEffect(() => {
+    setCalendarFile(null)
+    setPreview(null)
+    setSelectedDates(new Set())
+    setFileInputKey((key) => key + 1)
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year])
@@ -330,21 +339,58 @@ function Holidays({ onToast }: { onToast: (m: string) => void }) {
     }
   }
 
+  const previewCalendar = async () => {
+    if (!calendarFile) return setError('เลือกไฟล์ปฏิทิน .ics')
+    setImportBusy('preview')
+    setError(null)
+    try {
+      const result = await api.previewHolidayCalendar(calendarFile, year)
+      setPreview(result)
+      setSelectedDates(new Set(result.rows.filter((row) => !row.existingName).map((row) => row.date)))
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setImportBusy(null)
+    }
+  }
+
+  const commitCalendar = async () => {
+    if (!preview) return
+    const rows = preview.rows.filter((row) => selectedDates.has(row.date)).map(({ date, name }) => ({ date, name: name.trim() }))
+    if (!rows.length) return setError('เลือกอย่างน้อยหนึ่งวันที่ต้องการบันทึก')
+    if (rows.some((row) => !row.name)) return setError('กรอกชื่อวันหยุดให้ครบ')
+    setImportBusy('commit')
+    setError(null)
+    try {
+      const result = await api.commitHolidayCalendar(rows)
+      onToast(`นำเข้าวันหยุด ${result.added} วัน${result.skipped ? ` · ข้ามวันที่มีอยู่แล้ว ${result.skipped} วัน` : ''}`)
+      setPreview(null)
+      setCalendarFile(null)
+      setSelectedDates(new Set())
+      setFileInputKey((key) => key + 1)
+      load()
+    } catch (e) {
+      setError((e as Error).message)
+    } finally {
+      setImportBusy(null)
+    }
+  }
+
   return (
     <Card className="p-5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="display text-lg font-semibold">วันหยุด</h2>
         <div className="flex items-center gap-1.5">
-          <Button size="sm" aria-label="ปีก่อนหน้า" onClick={() => setYear(year - 1)}>
+          <Button size="sm" aria-label="ปีก่อนหน้า" disabled={!!importBusy} onClick={() => setYear(year - 1)}>
             ‹
           </Button>
           <span className="tnum w-14 text-center font-medium">{year + 543}</span>
-          <Button size="sm" aria-label="ปีถัดไป" onClick={() => setYear(year + 1)}>
+          <Button size="sm" aria-label="ปีถัดไป" disabled={!!importBusy} onClick={() => setYear(year + 1)}>
             ›
           </Button>
         </div>
       </div>
-      <p className="mt-1 text-[15px] leading-relaxed text-text-dim">วันหยุดไม่นับการเช็กชื่อของใครเลย ต้องเพิ่มเอง ไม่งั้นวันสงกรานต์จะขึ้นว่าขาดทั้งออฟฟิศ</p>
+      <p className="mt-1 text-[15px] leading-relaxed text-text-dim">วันหยุดไม่นับการเช็กชื่อของใครเลย เพิ่มทีละวันหรือนำเข้าจากปฏิทินแล้วตรวจรายการก่อนบันทึก</p>
 
       <div className="mt-4 flex flex-wrap items-end gap-2">
         <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-44" aria-label="วันที่" />
@@ -354,6 +400,83 @@ function Holidays({ onToast }: { onToast: (m: string) => void }) {
         </Button>
       </div>
       {error && <p className="mt-2 text-sm text-absent">{error}</p>}
+
+      <div className="mt-5 border-t border-rule pt-5">
+        <h3 className="font-medium">นำเข้าจากปฏิทิน</h3>
+        <p className="mt-1 text-sm leading-relaxed text-text-dim">
+          เลือกไฟล์ .ics จาก Google Calendar เพื่อตรวจวันหยุดของปี {year + 543} หากได้ไฟล์ ZIP ให้แตกไฟล์แล้วเลือก .ics ของปฏิทินวันหยุด
+        </p>
+        <div className="mt-3 flex flex-wrap items-end gap-2">
+          <div className="min-w-56 flex-1">
+            <Field label="ไฟล์ปฏิทิน .ics">
+              {(id) => <Input key={`${year}-${fileInputKey}`} id={id} type="file" accept=".ics,text/calendar" disabled={!!importBusy} onChange={(e) => {
+                setCalendarFile(e.target.files?.[0] ?? null)
+                setPreview(null)
+                setSelectedDates(new Set())
+              }} />}
+            </Field>
+          </div>
+          <Button onClick={previewCalendar} disabled={!calendarFile || !!importBusy}>
+            {importBusy === 'preview' ? 'กำลังอ่านไฟล์…' : 'ตรวจรายการ'}
+          </Button>
+        </div>
+
+        {preview && (
+          <div className="mt-4 rounded-xl border border-rule bg-sunken/50 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="font-medium">พบ {preview.rows.length} วันในปี {year + 543} · เลือกบันทึก {selectedDates.size} วัน</p>
+              {preview.rows.some((row) => !row.existingName) && (
+                <Button size="sm" variant="ghost" onClick={() => setSelectedDates(new Set(preview.rows.filter((row) => !row.existingName).map((row) => row.date)))}>
+                  เลือกวันที่ยังไม่มีทั้งหมด
+                </Button>
+              )}
+            </div>
+            {preview.skipped > 0 && <p className="mt-1 text-sm text-text-dim">ข้าม {preview.skipped} กิจกรรมที่ไม่ใช่วันเต็มหรือมีรูปแบบวันที่ซ้ำที่อ่านไม่ได้</p>}
+            {preview.rows.length === 0 ? (
+              <p className="mt-3 text-sm text-text-dim">ไม่พบวันหยุดในปีนี้ ลองเลือกปีให้ตรงกับข้อมูลในไฟล์</p>
+            ) : (
+              <ul className="mt-3 max-h-80 divide-y divide-rule overflow-y-auto border-y border-rule">
+                {preview.rows.map((row) => (
+                  <li key={row.date} className="flex flex-wrap items-center gap-2 py-2">
+                    {row.existingName ? (
+                      <span className="tnum min-w-28 text-sm text-text-dim">{shortDate(row.date)} · มีแล้ว</span>
+                    ) : (
+                      <Checkbox
+                        checked={selectedDates.has(row.date)}
+                        onChange={(e) => setSelectedDates((current) => {
+                          const next = new Set(current)
+                          if (e.target.checked) next.add(row.date)
+                          else next.delete(row.date)
+                          return next
+                        })}
+                        label={<span className="tnum">{shortDate(row.date)}</span>}
+                      />
+                    )}
+                    {row.existingName ? (
+                      <span className="text-sm text-text-dim">ในไฟล์: {row.name} · ในระบบ: {row.existingName}</span>
+                    ) : (
+                      <Input
+                        value={row.name}
+                        onChange={(e) => setPreview((current) => current && ({ ...current, rows: current.rows.map((item) => item.date === row.date ? { ...item, name: e.target.value } : item) }))}
+                        aria-label={`ชื่อวันหยุด ${shortDate(row.date)}`}
+                        className="min-w-44 flex-1"
+                      />
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button variant="primary" onClick={commitCalendar} disabled={selectedDates.size === 0 || !!importBusy}>
+                {importBusy === 'commit' ? 'กำลังบันทึก…' : `ยืนยันบันทึก ${selectedDates.size} วัน`}
+              </Button>
+              <Button variant="ghost" disabled={!!importBusy} onClick={() => { setPreview(null); setSelectedDates(new Set()) }}>
+                ยกเลิก
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {!list ? (
         <Loading />

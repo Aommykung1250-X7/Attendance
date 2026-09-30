@@ -8,6 +8,7 @@ import { COOKIE, createSession, deleteSession, readSession, TTL } from '../lib/s
 import { isValidDate, isValidMonth, localParts } from '../lib/time.js'
 import { shiftHistory } from '../services/audit.js'
 import { adminAction, dayLog } from '../services/day-admin.js'
+import { commitHolidayCalendar, previewHolidayCalendar } from '../services/holiday-calendar.js'
 import { commitImport, parseWorkbook, previewImport, templateWorkbook, type DeclaredProject, type ImportRow } from '../services/import.js'
 import * as people from '../services/people.js'
 import { monthlyReport } from '../services/report.js'
@@ -137,6 +138,14 @@ export async function adminRoutes(app: FastifyInstance) {
   app.post('/api/settings/display-key', async (req) => settings.rotateDisplayKey(admin(req)))
   app.post('/api/settings/reset-attendance', async (req) => settings.resetAttendanceData(admin(req)))
   app.get('/api/holidays', async (req) => settings.listHolidays((req.query as { year?: string }).year))
+  app.post('/api/holidays/import/preview', async (req) => {
+    const year = Number((req.query as { year?: string }).year)
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) throw badRequest('ปีไม่ถูกต้อง')
+    const file = await req.file()
+    if (!file || !file.filename.toLowerCase().endsWith('.ics')) throw badRequest('เลือกไฟล์ปฏิทิน .ics')
+    return previewHolidayCalendar((await file.toBuffer()).toString('utf8'), year)
+  })
+  app.post('/api/holidays/import/commit', async (req) => commitHolidayCalendar(admin(req), req.body))
   app.post('/api/holidays', async (req) => settings.addHoliday(admin(req), req.body))
   app.delete('/api/holidays/:date', async (req) => settings.removeHoliday(admin(req), (req.params as { date: string }).date))
 }

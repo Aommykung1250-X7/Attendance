@@ -37,6 +37,8 @@ export class ApiError extends Error {
   }
 }
 
+export type HolidayImportPreview = { rows: (Holiday & { existingName: string | null })[]; skipped: number }
+
 /** ลิงก์ไปหน้า Google แล้วกลับมาที่หน้าปัจจุบัน */
 export function loginUrl(next = location.pathname + location.search, switchAccount = false) {
   return `/api/auth/google?next=${encodeURIComponent(next)}${switchAccount ? '&switch=1' : ''}`
@@ -137,6 +139,12 @@ const realApi = {
   rotateDisplayKey: () => post<AppSettings>('/settings/display-key'),
   resetAttendance: () => post<{ ok: true; deletedAttendance: number; deletedOverrides: number }>('/settings/reset-attendance'),
   holidays: (year?: string) => get<Holiday[]>(`/holidays${year ? `?year=${year}` : ''}`),
+  previewHolidayCalendar: (file: File, year: number) => {
+    const body = new FormData()
+    body.append('file', file)
+    return request<HolidayImportPreview>('POST', `/holidays/import/preview?year=${year}`, body)
+  },
+  commitHolidayCalendar: (rows: Holiday[]) => post<{ added: number; skipped: number }>('/holidays/import/commit', { rows }),
   addHoliday: (h: Holiday) => post<Holiday>('/holidays', h),
   removeHoliday: (date: string) => del<{ ok: true }>(`/holidays/${date}`),
 
