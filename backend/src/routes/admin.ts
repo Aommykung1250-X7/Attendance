@@ -11,6 +11,7 @@ import { adminAction, dayLog } from '../services/day-admin.js'
 import { commitImport, parseWorkbook, previewImport, templateWorkbook, type DeclaredProject, type ImportRow } from '../services/import.js'
 import * as people from '../services/people.js'
 import { monthlyReport } from '../services/report.js'
+import { exportCsvZip, exportExcel, monthlyExport } from '../services/report-export.js'
 import * as settings from '../services/settings.js'
 import { requireAdmin } from './auth.js'
 
@@ -76,6 +77,20 @@ export async function adminRoutes(app: FastifyInstance) {
     const month = (req.query as { month?: string }).month ?? localParts(new Date()).date.slice(0, 7)
     if (!isValidMonth(month)) throw badRequest('เดือนต้องอยู่ในรูป YYYY-MM')
     return monthlyReport((req.params as { employeeId: string }).employeeId, month)
+  })
+
+  app.get('/api/report/export', async (req, reply) => {
+    const q = req.query as { month?: string; format?: string; inactive?: string }
+    const month = q.month ?? localParts(new Date()).date.slice(0, 7)
+    if (!isValidMonth(month)) throw badRequest('เดือนต้องอยู่ในรูป YYYY-MM')
+    if (q.format !== 'xlsx' && q.format !== 'csv') throw badRequest('เลือกชนิดไฟล์ xlsx หรือ csv')
+    const report = await monthlyExport(month, q.inactive === '1')
+    const isExcel = q.format === 'xlsx'
+    const file = isExcel ? await exportExcel(report) : await exportCsvZip(report)
+    reply
+      .header('Content-Type', isExcel ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/zip')
+      .header('Content-Disposition', `attachment; filename="attendance-${month}.${isExcel ? 'xlsx' : 'zip'}"`)
+    return reply.send(file)
   })
 
   // ---- นำเข้า Excel ---------------------------------------------------------

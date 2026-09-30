@@ -28,6 +28,7 @@ export default function Report() {
   const [error, setError] = useState<string | null>(null)
   const [focus, setFocus] = useState<Focus>('all')
   const [openDay, setOpenDay] = useState<string | null>(null)
+  const [downloading, setDownloading] = useState<'xlsx' | 'csv' | null>(null)
 
   const set = (patch: Record<string, string>) => setParams({ ...(employeeId ? { employee: employeeId } : {}), month, ...patch })
 
@@ -54,6 +55,26 @@ export default function Report() {
 
   const days = useMemo(() => (report?.days ?? []).filter((d) => d.entries.some((e) => match(e, focus))), [report, focus])
   const thisMonth = todayISO().slice(0, 7)
+
+  const download = async (format: 'xlsx' | 'csv') => {
+    setDownloading(format)
+    setError(null)
+    try {
+      const blob = await api.downloadReport(month, format, showHidden)
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `attendance-${month}.${format === 'xlsx' ? 'xlsx' : 'zip'}`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'ดาวน์โหลดรายงานไม่สำเร็จ')
+    } finally {
+      setDownloading(null)
+    }
+  }
 
   return (
     <>
@@ -94,6 +115,14 @@ export default function Report() {
           </div>
         </div>
         <Checkbox label="รวมคนที่ถูกซ่อน" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} className="text-sm" />
+        <div className="flex flex-wrap gap-2">
+          <Button disabled={!!downloading} onClick={() => download('xlsx')}>
+            {downloading === 'xlsx' ? 'กำลังสร้างไฟล์…' : 'ดาวน์โหลด Excel'}
+          </Button>
+          <Button disabled={!!downloading} onClick={() => download('csv')}>
+            {downloading === 'csv' ? 'กำลังสร้างไฟล์…' : 'ดาวน์โหลด CSV (ZIP)'}
+          </Button>
+        </div>
       </Card>
 
       {error && <ErrorNote message={error} />}

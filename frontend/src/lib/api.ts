@@ -110,6 +110,16 @@ const realApi = {
 
   // ---- รายงาน ----
   report: (employeeId: string, month: string) => get<MonthlyReport>(`/report/${employeeId}?month=${month}`),
+  downloadReport: async (month: string, format: 'xlsx' | 'csv', includeInactive = false) => {
+    const query = new URLSearchParams({ month, format })
+    if (includeInactive) query.set('inactive', '1')
+    const res = await fetch(`/api/report/export?${query}`, { credentials: 'same-origin' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new ApiError(res.status, data.message ?? 'ดาวน์โหลดรายงานไม่สำเร็จ')
+    }
+    return res.blob()
+  },
 
   // ---- นำเข้า Excel ----
   importPreview: (file: File) => {

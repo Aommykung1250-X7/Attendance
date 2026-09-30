@@ -509,6 +509,10 @@ export const mockApi = {
     })
   },
 
+  downloadReport: async () => {
+    throw new ApiError(503, 'โหมดข้อมูลจำลองไม่รองรับการดาวน์โหลดไฟล์')
+  },
+
   importPreview: async (file) => {
     if (/error/i.test(file.name))
       return wait<ImportPreview>(
