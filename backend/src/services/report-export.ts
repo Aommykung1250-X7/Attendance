@@ -70,17 +70,17 @@ const shortDate = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}`
 const monthName = (month: string) => new Intl.DateTimeFormat('th-TH', { month: 'long', year: 'numeric', timeZone: 'UTC' })
   .format(new Date(`${month}-01T00:00:00Z`))
 
-function dateHeader(date: string, holidays: Map<string, string>): string {
+function dateHeader(date: string, holidays: Map<string, string>, markWeekend = false): string {
   const weekday = weekdayOf(date)
   const weekend = weekday === 6 ? 'เสาร์ ' : weekday === 7 ? 'อาทิตย์ ' : ''
   const holiday = holidays.get(date)
-  return `${weekend}${shortDate(date)}${holiday ? ` (${safeText(holiday)})` : ''}`
+  return `${weekend && markWeekend ? '🔴 ' : ''}${weekend}${shortDate(date)}${holiday ? ` (${safeText(holiday)})` : ''}`
 }
 
-export function exportTables(report: MonthlyExport): { daily: (string | number)[][]; summary: (string | number)[][] } {
+export function exportTables(report: MonthlyExport, markWeekends = false): { daily: (string | number)[][]; summary: (string | number)[][] } {
   return {
     daily: [
-      [`ชื่อ (${monthName(report.month)})`, ...report.dates.map((date) => dateHeader(date, report.holidays))],
+      [`ชื่อ (${monthName(report.month)})`, ...report.dates.map((date) => dateHeader(date, report.holidays, markWeekends))],
       ...report.people.map(({ employee, cells }) => [nameOf(employee), ...cells]),
     ],
     summary: [
@@ -110,8 +110,8 @@ export async function exportExcel(report: MonthlyExport): Promise<Buffer> {
           if (holiday) column.width = 28
           column.eachCell({ includeEmpty: true }, (cell) => {
             const argb = Number(cell.row) === 1
-              ? holiday ? 'FF946200' : 'FF536477'
-              : holiday ? 'FFFFE9BE' : 'FFF0F2F5'
+              ? weekend ? 'FFAA2530' : 'FF946200'
+              : weekend ? 'FFFFE2E4' : 'FFFFE9BE'
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb } }
           })
         }
@@ -134,7 +134,7 @@ function csv(rows: (string | number)[][]): string {
 }
 
 export async function exportCsvZip(report: MonthlyExport): Promise<Buffer> {
-  const tables = exportTables(report)
+  const tables = exportTables(report, true)
   const zip = new JSZip()
   zip.file('daily.csv', csv(tables.daily))
   zip.file('summary.csv', csv(tables.summary))

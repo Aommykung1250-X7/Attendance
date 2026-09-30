@@ -34,7 +34,7 @@ describe('ส่งออกรายงานรายเดือน', () => {
     expect(exportTables(report).daily[0]).toEqual(['ชื่อ (กันยายน 2569)', '01/09', '02/09', '03/09'])
   })
 
-  it('แสดงชื่อวันเสาร์อาทิตย์และวันหยุดพิเศษ โดยนับเสาร์อาทิตย์เฉพาะวันที่มีกะ', () => {
+  it('แสดงชื่อวันเสาร์อาทิตย์และวันหยุดพิเศษ โดยนับเสาร์อาทิตย์เฉพาะวันที่มีกะ', async () => {
     const dates = ['2026-09-05', '2026-09-06', '2026-09-07']
     const report = buildMonthlyExport('2026-09', dates, [employee('1', 'ต้น'), employee('2', 'แนน')], new Map([
       [dates[0], [{ row: entry('1', 'ontime') }]],
@@ -47,6 +47,18 @@ describe('ส่งออกรายงานรายเดือน', () => {
     expect(report.people[0].counts.expected).toBe(1)
     expect(report.people[1].cells).toEqual(['', 'สาย', 'วันหยุด: วันหยุดพิเศษ'])
     expect(report.people[1].counts.expected).toBe(1)
+
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.load(await exportExcel(report) as unknown as Parameters<typeof workbook.xlsx.load>[0])
+    const daily = workbook.getWorksheet('รายวัน')!
+    expect(daily.getCell('B1').fill).toMatchObject({ fgColor: { argb: 'FFAA2530' } })
+    expect(daily.getCell('C1').fill).toMatchObject({ fgColor: { argb: 'FFAA2530' } })
+    expect(daily.getCell('B2').fill).toMatchObject({ fgColor: { argb: 'FFFFE2E4' } })
+    expect(daily.getCell('C2').fill).toMatchObject({ fgColor: { argb: 'FFFFE2E4' } })
+    expect(daily.getCell('D1').fill).toMatchObject({ fgColor: { argb: 'FF946200' } })
+
+    const zip = await JSZip.loadAsync(await exportCsvZip(report))
+    expect(await zip.file('daily.csv')!.async('string')).toContain('🔴 เสาร์ 05/09,🔴 อาทิตย์ 06/09')
   })
 
   it('Excel มีสองชีต และ ZIP มี CSV สองไฟล์พร้อมหัวตาราง', async () => {
