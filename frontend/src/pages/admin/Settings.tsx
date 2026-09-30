@@ -402,18 +402,44 @@ function Holidays({ onToast }: { onToast: (m: string) => void }) {
       {error && <p className="mt-2 text-sm text-absent">{error}</p>}
 
       <div className="mt-5 border-t border-rule pt-5">
-        <h3 className="font-medium">นำเข้าจากปฏิทิน</h3>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <h3 className="font-medium">นำเข้าจากปฏิทิน</h3>
+          <a
+            href="https://thailandformats.com/calendar/thai-holidays.ics"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex min-h-9 cursor-pointer items-center rounded-xl border border-rule-strong bg-surface px-3 text-sm font-medium text-text transition-colors hover:bg-sunken focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          >
+            โหลดวันหยุดไทย .ics ↗
+          </a>
+        </div>
         <p className="mt-1 text-sm leading-relaxed text-text-dim">
-          เลือกไฟล์ .ics จาก Google Calendar เพื่อตรวจวันหยุดของปี {year + 543} หากได้ไฟล์ ZIP ให้แตกไฟล์แล้วเลือก .ics ของปฏิทินวันหยุด
+          โหลดไฟล์วันหยุดไทยหรือเลือกไฟล์ .ics จาก Google Calendar เพื่อตรวจวันหยุดของปี {year + 543} หากได้ไฟล์ ZIP ให้แตกไฟล์แล้วเลือก .ics ของปฏิทินวันหยุด
         </p>
         <div className="mt-3 flex flex-wrap items-end gap-2">
-          <div className="min-w-56 flex-1">
+          <div className="w-full max-w-72">
             <Field label="ไฟล์ปฏิทิน .ics">
-              {(id) => <Input key={`${year}-${fileInputKey}`} id={id} type="file" accept=".ics,text/calendar" disabled={!!importBusy} onChange={(e) => {
-                setCalendarFile(e.target.files?.[0] ?? null)
-                setPreview(null)
-                setSelectedDates(new Set())
-              }} />}
+              {(id) => (
+                <label
+                  htmlFor={id}
+                  className={`inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-rule-strong bg-surface px-3 text-center text-[15px] text-text transition-colors focus-within:border-focus focus-within:ring-2 focus-within:ring-focus/20 ${importBusy ? 'cursor-not-allowed bg-sunken' : 'cursor-pointer hover:bg-sunken'}`}
+                >
+                  <span className="truncate">{calendarFile?.name ?? 'เลือกไฟล์ .ics'}</span>
+                  <input
+                    key={`${year}-${fileInputKey}`}
+                    id={id}
+                    type="file"
+                    accept=".ics,text/calendar"
+                    className="sr-only"
+                    disabled={!!importBusy}
+                    onChange={(e) => {
+                      setCalendarFile(e.target.files?.[0] ?? null)
+                      setPreview(null)
+                      setSelectedDates(new Set())
+                    }}
+                  />
+                </label>
+              )}
             </Field>
           </div>
           <Button onClick={previewCalendar} disabled={!calendarFile || !!importBusy}>
