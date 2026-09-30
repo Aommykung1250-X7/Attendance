@@ -66,10 +66,30 @@ async function assertEmailFree(tx: Tx, email: string, exceptId?: string) {
   }
 }
 
+const nameKey = (nickname: string, gen: string | null) => `${nickname.replace(/\s+/g, '').toLowerCase()}|${(gen ?? '').replace(/\s+/g, '').toLowerCase()}`
+
+/**
+ * ชื่อเล่น + Gen ซ้ำกันได้เฉพาะเมื่อทั้งสองคนมีอีเมล (ไม่สนช่องว่างและตัวพิมพ์)
+ * คนที่ไม่มีอีเมลถูกระบุตัวด้วยชื่อเล่น + Gen ทั้งตอนนำเข้า Excel และบนทุกหน้า ถ้าซ้ำจะแยกสองคนไม่ออก
+ */
+async function assertNameFree(tx: Tx, person: { nickname: string; gen: string | null; email: string | null }, exceptId?: string) {
+  const key = nameKey(person.nickname, person.gen)
+  const all = await tx.select().from(schema.employees)
+  const dup = all.find((e) => e.id !== exceptId && nameKey(e.nickname, e.gen) === key && (!person.email || !e.email))
+  if (dup) {
+    throw conflict(
+      dup.isActive
+        ? `มี ${displayName(dup)} อยู่แล้ว ใส่ Gen ให้ต่างกัน หรือกรอกอีเมลของทั้งสองคนเพื่อแยกคน`
+        : `มี ${displayName(dup)} ที่ถูกซ่อนไว้ กู้คืนคนนั้นแทนการเพิ่มใหม่ หรือใส่ Gen ให้ต่างกัน`,
+    )
+  }
+}
+
 export async function createEmployee(adminEmail: string, raw: unknown): Promise<Employee> {
   const input = parseEmployeeInput(raw, false) as Required<ReturnType<typeof parseEmployeeInput>>
   return db.transaction(async (tx) => {
     if (input.email) await assertEmailFree(tx, input.email)
+    await assertNameFree(tx, input)
     const [e] = await tx.insert(schema.employees).values(input).returning()
     await audit(tx, { adminEmail, action: 'employee_create', employeeId: e.id, after: toEmployee(e) })
     return toEmployee(e)
@@ -81,6 +101,8 @@ export async function updateEmployee(adminEmail: string, id: string, raw: unknow
   return db.transaction(async (tx) => {
     const before = await getEmployee(tx, id)
     if (input.email) await assertEmailFree(tx, input.email, id)
+    if (input.nickname !== undefined || input.gen !== undefined || input.email !== undefined)
+      await assertNameFree(tx, { nickname: input.nickname ?? before.nickname, gen: input.gen !== undefined ? input.gen : before.gen, email: input.email !== undefined ? input.email : before.email }, id)
     const [e] = await tx.update(schema.employees).set(input).where(eq(schema.employees.id, id)).returning()
     await audit(tx, { adminEmail, action: 'employee_update', employeeId: id, before: toEmployee(before), after: toEmployee(e) })
     return toEmployee(e)

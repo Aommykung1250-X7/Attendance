@@ -140,6 +140,8 @@ const realApi = {
       shifts: ShiftInstance[]
       requests: UnifiedRequest[]
     }>('GET', '/requests/me', undefined, { redirectOn401: true }),
+  myReport: (month?: string) =>
+    request<MonthlyReport>('GET', `/requests/me/report${month ? `?month=${month}` : ''}`, undefined, { redirectOn401: true }),
   submitLeaveRequest: (body: FormData | Record<string, unknown>) => request<LeaveRequest>('POST', '/requests/leave', body),
   submitRequestOffsite: (body: FormData) => request<OffsiteRequest>('POST', '/requests/offsite', body),
   cancelRequest: (kind: 'leave' | 'offsite', id: string) => post<{ ok: true }>(`/requests/${kind}/${id}/cancel`),

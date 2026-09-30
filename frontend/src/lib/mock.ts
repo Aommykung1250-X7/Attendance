@@ -4,6 +4,7 @@
 import type { Api } from './api'
 import { ApiError } from './api'
 import { addDays, bangkok, describeShifts, minutesOf, todayISO } from './format'
+import { coordError, intError, lineOaUrlError } from './settingsRules'
 import type {
   AdminAction,
   AuditEntry,
@@ -18,6 +19,7 @@ import type {
   Project,
   Shift,
   AppSettings,
+  LeaveDuration,
   LeaveRequest,
   OffsiteRequest,
   ShiftEntry,
@@ -91,12 +93,21 @@ const settings: AppSettings = {
   maxLocationAccuracyMeters: 100,
 }
 
+const mockLeaveRequests: LeaveRequest[] = []
+
+/** กะของวันนี้ของพนักงาน ใช้ผูกคำขอตัวอย่างให้ตรงกับตารางงานจริงใน mock */
+function todayShiftId(employeeId: string) {
+  const d = new Date(`${todayISO()}T00:00:00Z`).getUTCDay()
+  const weekday = d === 0 ? 7 : d
+  return shifts.find((s) => s.employeeId === employeeId && s.weekday === weekday)?.id ?? 's1'
+}
+
 const mockOffsiteRequests: OffsiteRequest[] = [
   {
     kind: 'offsite',
     id: 'off-1',
     employeeId: 'e1',
-    shiftId: 's1',
+    shiftId: todayShiftId('e1'),
     date: todayISO(),
     taskDescription: 'ออกไปพบลูกค้าที่สุขุมวิท และติดตั้งระบบทดสอบ',
     photoPath: 'https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=600&auto=format&fit=crop&q=80',
@@ -278,6 +289,44 @@ function scheduleOf(id: string) {
   return { employee, assignments }
 }
 
+// ---- ตรวจซ้ำแบบเดียวกับ backend (services/people.ts) ----
+const squash = (s: string | null) => (s ?? '').replace(/\s+/g, '').toLowerCase()
+
+/** ชื่อเล่น + Gen ซ้ำได้เฉพาะเมื่อทั้งสองคนมีอีเมล */
+function assertMockNameFree(person: { nickname: string; gen: string | null; email: string | null }, exceptId?: string) {
+  const dup = employees.find((e) => e.id !== exceptId && squash(e.nickname) === squash(person.nickname) && squash(e.gen) === squash(person.gen) && (!person.email || !e.email))
+  if (dup) throw new ApiError(409, `มี ${dup.gen ? `${dup.nickname} (${dup.gen})` : dup.nickname} อยู่แล้ว ใส่ Gen ให้ต่างกัน หรือกรอกอีเมลของทั้งสองคนเพื่อแยกคน`)
+}
+
+function assertMockProjectNameFree(name: string, exceptId?: string) {
+  const dup = projects.find((p) => p.id !== exceptId && p.name.trim().toLowerCase() === name.trim().toLowerCase())
+  if (dup) throw new ApiError(409, `มีโปรเจกชื่อ ${dup.name} อยู่แล้ว`)
+}
+
+// ---- ศูนย์คำขอ: ตรวจแบบเดียวกับ backend (services/leave.ts, services/offsite.ts) ----
+const activeStatus = (s: string) => s === 'pending' || s === 'approved'
+
+/** กะที่ต้องลาในช่วงวันที่ นับเฉพาะวันที่มีตารางงาน */
+function mockLeaveDays(employeeId: string, start: string, end: string, portion: LeaveDuration) {
+  const days: NonNullable<LeaveRequest['days']> = []
+  for (let d = start; d <= end; d = addDays(d, 1)) {
+    for (const r of rowsFor(d, employeeId)) {
+      if (portion === 'morning' && r.startTime >= '13:00') continue
+      if (portion === 'afternoon' && r.endTime <= '13:00') continue
+      days.push({ shiftId: r.shiftId, date: d, portion, projectName: r.projectName, startTime: r.startTime, endTime: r.endTime })
+    }
+  }
+  return days
+}
+
+function assertNoMockConflict(employeeId: string, days: { shiftId: string; date: string }[]) {
+  const keys = new Set(days.map((d) => `${d.shiftId}|${d.date}`))
+  const leave = mockLeaveRequests.some((r) => r.employeeId === employeeId && activeStatus(r.status) && r.days?.some((d) => keys.has(`${d.shiftId}|${d.date}`)))
+  if (leave) throw new ApiError(409, 'มีคำขอลาที่ทับกับวันและกะนี้อยู่แล้ว')
+  const offsite = mockOffsiteRequests.some((r) => r.employeeId === employeeId && activeStatus(r.status) && keys.has(`${r.shiftId}|${r.date}`))
+  if (offsite) throw new ApiError(409, 'มีคำขอทำงานนอกสถานที่ที่ทับกับวันและกะนี้อยู่แล้ว')
+}
+
 export const mockApi = {
   board: async () => {
     const date = todayISO()
@@ -368,12 +417,16 @@ export const mockApi = {
   createEmployee: async (e) => {
     const email = e.email?.toLowerCase() ?? null
     if (email && employees.some((x) => x.email === email)) throw new ApiError(409, 'อีเมลนี้มีอยู่แล้ว')
+    assertMockNameFree({ ...e, email })
     const n: Employee = { ...e, email, id: nextId('e'), isActive: true }
     employees.push(n)
     return wait(n)
   },
   updateEmployee: async (id, patch) => {
     const e = employees.find((x) => x.id === id)!
+    const email = patch.email !== undefined ? patch.email?.toLowerCase() ?? null : e.email
+    if (email && employees.some((x) => x.id !== id && x.email === email)) throw new ApiError(409, 'อีเมลนี้มีอยู่แล้ว')
+    assertMockNameFree({ nickname: patch.nickname ?? e.nickname, gen: patch.gen !== undefined ? patch.gen : e.gen, email }, id)
     Object.assign(e, patch)
     return wait(e)
   },
@@ -409,12 +462,14 @@ export const mockApi = {
     })
   },
   createProject: async (p) => {
+    assertMockProjectNameFree(p.name)
     const n = { ...p, id: nextId('p') }
     projects.push(n)
     return wait(n)
   },
   updateProject: async (id, patch) => {
     const p = projects.find((x) => x.id === id)!
+    if (patch.name !== undefined) assertMockProjectNameFree(patch.name, id)
     Object.assign(p, patch)
     return wait(p)
   },
@@ -499,10 +554,18 @@ export const mockApi = {
 
   settings: async () => wait(settings),
   updateSettings: async (s) => {
-    if (s.qrTokenTtl !== undefined) settings.qrTokenTtl = s.qrTokenTtl
-    if (s.lineOaUrl !== undefined) settings.lineOaUrl = s.lineOaUrl
-    if (s.autoCheckoutMode !== undefined) settings.autoCheckoutMode = s.autoCheckoutMode
-    return wait(settings)
+    // ตรวจแบบเดียวกับ backend ก่อนเขียนค่าใดๆ
+    const invalid =
+      (s.qrTokenTtl !== undefined && intError('qrTokenTtl', s.qrTokenTtl)) ||
+      (s.lateGraceMinutes !== undefined && intError('lateGraceMinutes', s.lateGraceMinutes)) ||
+      (s.checkinRadiusMeters !== undefined && intError('checkinRadiusMeters', s.checkinRadiusMeters)) ||
+      (s.maxLocationAccuracyMeters !== undefined && intError('maxLocationAccuracyMeters', s.maxLocationAccuracyMeters)) ||
+      (s.officeLatitude !== undefined && coordError('officeLatitude', s.officeLatitude)) ||
+      (s.officeLongitude !== undefined && coordError('officeLongitude', s.officeLongitude)) ||
+      (s.lineOaUrl !== undefined && lineOaUrlError(s.lineOaUrl ?? ''))
+    if (invalid) throw new ApiError(400, invalid)
+    Object.assign(settings, s, s.lineOaUrl !== undefined ? { lineOaUrl: s.lineOaUrl?.trim() || null } : {})
+    return wait({ ...settings })
   },
   rotateDisplayKey: async () => {
     settings.displayKey = Math.random().toString(36).slice(2, 14)
@@ -512,6 +575,8 @@ export const mockApi = {
   resetAttendance: async () => wait({ ok: true as const, deletedAttendance: 24, deletedOverrides: 5 }, 500),
   holidays: async (year) => wait(holidays.filter((h) => !year || h.date.startsWith(year)).sort((a, b) => a.date.localeCompare(b.date))),
   addHoliday: async (h) => {
+    const existing = holidays.find((x) => x.date === h.date)
+    if (existing) throw new ApiError(409, `วันที่นี้เป็นวันหยุด "${existing.name}" อยู่แล้ว`)
     holidays.push(h)
     return wait(h)
   },
@@ -526,16 +591,22 @@ export const mockApi = {
       employee: emp,
       date: todayISO(),
       time: '09:15:00',
-      holiday: null,
-      shifts: [],
-      requests: mockOffsiteRequests.filter((r) => r.employeeId === emp.id),
+      holiday: holidays.find((h) => h.date === todayISO())?.name ?? null,
+      shifts: rowsFor(todayISO(), emp.id),
+      requests: [...mockLeaveRequests, ...mockOffsiteRequests]
+        .filter((r) => r.employeeId === emp.id)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     })
   },
+  myReport: async (month?: string): Promise<MonthlyReport> => mockApi.report(employees[0].id, month ?? todayISO().slice(0, 7)),
   submitRequestOffsite: async (fd: FormData) => {
     const shiftId = String(fd.get('shiftId') || 's1')
     const taskDescription = String(fd.get('taskDescription') || '')
     const locationName = String(fd.get('locationName') || '')
     const emp = employees[0]
+    const shift = rowsFor(todayISO(), emp.id).find((r) => r.shiftId === shiftId)
+    if (!shift) throw new ApiError(400, 'ไม่พบกะงานนี้สำหรับวันนี้')
+    assertNoMockConflict(emp.id, [{ shiftId, date: todayISO() }])
     const req: OffsiteRequest = {
       kind: 'offsite',
       id: `off-${Date.now()}`,
@@ -552,27 +623,52 @@ export const mockApi = {
       createdAt: new Date().toISOString(),
       nickname: emp.nickname,
       gen: emp.gen,
-      projectName: 'TurnPRO',
-      startTime: '09:00',
-      endTime: '18:00',
+      projectName: shift.projectName,
+      startTime: shift.startTime,
+      endTime: shift.endTime,
     }
     mockOffsiteRequests.unshift(req)
     return wait(req, 400)
   },
   submitLeaveRequest: async (body) => {
     const get = (key: string) => body instanceof FormData ? String(body.get(key) ?? '') : String(body[key] ?? '')
+    const emp = employees[0]
+    const startDate = get('startDate')
+    const endDate = get('endDate')
+    const duration = get('duration') as LeaveDuration
+    if (!startDate || !endDate || endDate < startDate) throw new ApiError(400, 'ช่วงวันที่ลาไม่ถูกต้อง')
+    if (startDate < todayISO()) throw new ApiError(400, 'พนักงานไม่สามารถยื่นลาย้อนหลังได้')
+    if (!get('reason').trim()) throw new ApiError(400, 'กรุณากรอกเหตุผลการลา')
+    const days = mockLeaveDays(emp.id, startDate, endDate, duration)
+    if (!days.length) throw new ApiError(400, 'ช่วงวันที่เลือกไม่มีวันที่มีตารางงาน')
+    assertNoMockConflict(emp.id, days)
+    // ไฟล์ที่แนบในโหมดตัวอย่างเปิดดูได้จาก blob URL ในเบราว์เซอร์นี้เท่านั้น
+    const file = body instanceof FormData ? body.get('file') : null
+    const medicalCertificatePath = file instanceof File ? URL.createObjectURL(file) : null
     const request: LeaveRequest = {
       kind: 'leave', id: `leave-${Date.now()}`, employeeId: employees[0].id,
-      startDate: get('startDate'), endDate: get('endDate'), duration: get('duration') as LeaveRequest['duration'],
+      startDate, endDate, duration,
       leaveType: (get('leaveType') || null) as LeaveRequest['leaveType'], reason: get('reason'),
-      medicalCertificatePath: null, medicalCertificatePending: get('medicalCertificatePending') === 'true', medicalCertificateReceivedAt: null,
+      medicalCertificatePath, medicalCertificatePending: !medicalCertificatePath && get('medicalCertificatePending') === 'true', medicalCertificateReceivedAt: medicalCertificatePath ? new Date().toISOString() : null,
       status: 'pending', reviewedBy: null, reviewedAt: null, rejectReason: null, cancelledAt: null,
-      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), nickname: employees[0].nickname, days: [],
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), nickname: employees[0].nickname, days,
     }
+    mockLeaveRequests.unshift(request)
     return wait(request)
   },
-  cancelRequest: async () => wait({ ok: true as const }),
-  uploadMedicalCertificate: async () => { throw new ApiError(501, 'โหมดตัวอย่างไม่รองรับการอัปโหลด') },
+  cancelRequest: async (kind, id) => {
+    const req = (kind === 'leave' ? mockLeaveRequests : mockOffsiteRequests).find((r) => r.id === id)
+    if (req) req.status = 'cancelled'
+    return wait({ ok: true as const })
+  },
+  uploadMedicalCertificate: async (id: string, file: File) => {
+    const request = mockLeaveRequests.find((r) => r.id === id)
+    if (!request) throw new ApiError(404, 'ไม่พบคำขอลา')
+    if (request.leaveType !== 'sick') throw new ApiError(400, 'คำขอนี้ไม่ใช่ลาป่วย')
+    const now = new Date().toISOString()
+    Object.assign(request, { medicalCertificatePath: URL.createObjectURL(file), medicalCertificatePending: false, medicalCertificateReceivedAt: now, updatedAt: now })
+    return wait(request, 400)
+  },
   requestOffsiteCheckout: async () => wait({ ok: true as const }),
   adminRequests: async (status, kind) => wait(mockOffsiteRequests.filter((r) => (!status || r.status === status) && (!kind || r.kind === kind))),
   reviewRequest: async (_kind, id, action, rejectReason) => {

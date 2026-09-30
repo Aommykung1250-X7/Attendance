@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode, type SVGProps } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type SVGProps } from 'react'
 import { useParams } from 'react-router-dom'
 import QRCode from 'qrcode'
 import { api } from '../lib/api'
 import { bangkok, minutesOf, shortWeekdayDate } from '../lib/format'
-import type { KioskBoard, ShiftInstance } from '../lib/types'
+import type { KioskBoard, LeaveDuration, LeaveType, ShiftInstance } from '../lib/types'
 import AttendanceMascot, { type MascotEvent } from '../components/AttendanceMascot'
 
 /**
@@ -16,6 +16,26 @@ import AttendanceMascot, { type MascotEvent } from '../components/AttendanceMasc
 export default function Kiosk() {
   const { displayKey = 'demo' } = useParams()
   const [board, setBoard] = useState<KioskBoard | null>(null)
+  // รายละเอียดของคนที่เอาเมาส์ชี้ (หรือโฟกัสด้วยคีย์บอร์ด / แตะบนจอสัมผัส) แสดงเป็นป๊อปอัปข้างแถวนั้น
+  const [hovered, setHovered] = useState<{ row: ShiftInstance; anchor: DOMRect } | null>(null)
+  const pick: Pick = useMemo(
+    () => ({
+      show: (row, el) => setHovered({ row, anchor: el.getBoundingClientRect() }),
+      hide: () => setHovered(null),
+    }),
+    [],
+  )
+  // เลื่อนรายการหรือปรับขนาดจอแล้วตำแหน่งเดิมผิด จึงซ่อน
+  useEffect(() => {
+    if (!hovered) return
+    const hide = () => setHovered(null)
+    window.addEventListener('scroll', hide, true)
+    window.addEventListener('resize', hide)
+    return () => {
+      window.removeEventListener('scroll', hide, true)
+      window.removeEventListener('resize', hide)
+    }
+  }, [hovered])
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(new Date())
   // ส่วนต่างระหว่างนาฬิกาเซิร์ฟเวอร์กับเครื่องนี้ นาฬิกาบนจอจึงตรงกับเวลาที่ใช้ตัดสินจริง
@@ -118,24 +138,30 @@ export default function Kiosk() {
   const mascotEvent = useMascotEvent({ board, arrived, leave, absent })
 
   const roundOf = (r: ShiftInstance) => (multiShift.has(r.employeeId) ? `${r.startTime}–${r.endTime}` : null)
+  // บนแถวรายชื่อไม่แสดงเวลา (ดูได้ในกล่องรายละเอียด) คนที่มีหลายกะจึงบอกเป็น "รอบ 1 / รอบ 2" แทน
+  const roundNo = useMemo(() => {
+    const byEmployee = new Map<string, ShiftInstance[]>()
+    for (const r of rows) byEmployee.set(r.employeeId, [...(byEmployee.get(r.employeeId) ?? []), r])
+    const out = new Map<string, number>()
+    for (const list of byEmployee.values()) {
+      if (list.length < 2) continue
+      list.sort((x, y) => minutesOf(x.startTime) - minutesOf(y.startTime)).forEach((r, i) => out.set(r.shiftId, i + 1))
+    }
+    return out
+  }, [rows])
+  const roundLabelOf = (r: ShiftInstance) => (roundNo.has(r.shiftId) ? `รอบ ${roundNo.get(r.shiftId)}` : null)
 
   return (
-    <div className="kiosk-theme flex min-h-dvh w-full flex-col gap-7 px-5 py-6 font-sans text-text min-[1200px]:h-dvh min-[1200px]:overflow-hidden min-[1200px]:px-12 min-[1200px]:py-9">
+    <div className="kiosk-theme flex min-h-dvh w-full flex-col gap-7 px-5 pt-3 pb-6 font-sans text-text min-[1200px]:h-dvh min-[1200px]:overflow-hidden min-[1200px]:px-12 min-[1200px]:pt-4 min-[1200px]:pb-9">
       {/* ================= Header ================= */}
-      <header className="flex shrink-0 flex-wrap items-end justify-between gap-x-8 gap-y-4">
-        <div>
-          <p className="display tnum leading-none font-bold tracking-tight text-text text-[clamp(56px,9.8vh,88px)]">
-            {b.hh}:{b.mm}
-            <span className="ml-2 align-top text-[30px] font-semibold text-k-seconds">{b.ss}</span>
-          </p>
-          <p className="mt-2 text-[20px] text-text-dim">{shortWeekdayDate(b.date)}</p>
-          {error && board && <p className="mt-1 text-[16px] text-k-orange">{error}</p>}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-          <StatChips summary={board?.summary} />
+      {/* นาฬิกาและวันที่อยู่ในการ์ด QR · หัวจอ: ข้อความผิดพลาดซ้าย | แถบสรุปกลางจอ | ปุ่มเต็มจอขวา */}
+      {/* จอแคบ (มือถือ) ไม่พอสามช่อง: เรียงต่อกันกลางจอ ขึ้นบรรทัดใหม่ได้ */}
+      <header className="flex shrink-0 flex-wrap items-center justify-center gap-3 min-[1200px]:grid min-[1200px]:grid-cols-[1fr_auto_1fr] min-[1200px]:gap-x-6">
+        <div className="min-w-0 max-[1199px]:w-full max-[1199px]:text-center max-[1199px]:empty:hidden">{error && board && <p className="text-[16px] text-k-orange">{error}</p>}</div>
+        <StatChips summary={board?.summary} />
+        <div className="flex justify-end">
           {!fullscreen.active && fullscreen.supported && (
-            <button onClick={fullscreen.enter} className="panel rounded-full px-4 py-2 text-[14px] font-medium text-text-dim hover:text-text">
+            <button onClick={fullscreen.enter} className="panel rounded-full px-3.5 py-1.5 text-[13px] font-medium whitespace-nowrap text-text-dim hover:text-text">
               เต็มจอ
             </button>
           )}
@@ -149,9 +175,23 @@ export default function Kiosk() {
       */}
       <AttendanceMascot event={mascotEvent} className="relative z-10 -mt-7 -mb-[calc(1.75rem+6px)]" />
 
-      {/* ================= Main: QR (440px ที่จอ 1440 ยืดตามจอ) | ยังไม่มา | มาแล้ว เรียงข้างกันสูงเท่ากัน ================= */}
-      <main className="grid min-h-0 flex-1 grid-cols-1 gap-7 min-[1200px]:grid-cols-[clamp(320px,27%,560px)_1fr_1fr_1fr] min-[1200px]:grid-rows-[minmax(0,1fr)]">
-        <QRCard canvasRef={canvasRef} secondsLeft={secondsLeft} ttl={ttl} hasToken={!!token} />
+      {/* ================= Main: คอลัมน์ซ้าย QR 70% (บน) | ลา 30% (ล่าง) · ยังไม่มา | มาแล้ว สูงเต็มสองแถว ================= */}
+      <main className="grid min-h-0 flex-1 grid-cols-1 gap-7 min-[1200px]:grid-cols-[clamp(320px,27%,560px)_1fr_1fr] min-[1200px]:grid-rows-[minmax(0,7fr)_minmax(0,3fr)]">
+        <QRCard
+          canvasRef={canvasRef}
+          secondsLeft={secondsLeft}
+          ttl={ttl}
+          hasToken={!!token}
+          clock={
+            <div className="text-center">
+              <p className="display tnum leading-none font-bold tracking-tight text-text text-[calc(64*var(--u))]">
+                {b.hh}:{b.mm}
+                <span className="ml-[calc(6*var(--u))] align-top text-[calc(24*var(--u))] font-semibold text-k-seconds">{b.ss}</span>
+              </p>
+              <p className="mt-1.5 text-[calc(18*var(--u))] text-text-dim">{shortWeekdayDate(b.date)}</p>
+            </div>
+          }
+        />
 
         {error && !board ? (
           <MessageCard>{error}</MessageCard>
@@ -161,12 +201,13 @@ export default function Kiosk() {
           <MessageCard>{board.dateLabel.includes('·') ? 'วันนี้เป็นวันหยุด' : 'วันนี้ไม่มีใครมีตารางงาน'}</MessageCard>
         ) : (
           <>
-            <PendingCard rows={pending} absent={absent} nowMin={nowMin} roundOf={roundOf} />
-            <ArrivedCard rows={arrived} roundOf={roundOf} />
-            <LeaveCard rows={leave} roundOf={roundOf} />
+            <PendingCard rows={pending} absent={absent} nowMin={nowMin} roundOf={roundOf} roundLabelOf={roundLabelOf} onPick={pick} />
+            <ArrivedCard rows={arrived} roundOf={roundOf} onPick={pick} />
+            <LeaveCard rows={leave} onPick={pick} />
           </>
         )}
       </main>
+      {hovered && <PersonPopover key={hovered.row.shiftId} row={hovered.row} round={roundOf(hovered.row)} anchor={hovered.anchor} />}
     </div>
   )
 }
@@ -176,6 +217,8 @@ export default function Kiosk() {
 // ---------------------------------------------------------------------------
 
 const hhmm = (t: string | null) => (t ? t.slice(0, 5) : '')
+/** รายชื่อในการ์ด "ยังไม่มา" / "มาแล้ว" เกินจำนวนนี้แบ่งเป็นสองคอลัมน์ ให้เห็นครบโดยไม่ต้องเลื่อน */
+const TWO_COLUMN_AFTER = 8
 /** ป้ายกำกับชื่อ: Gen สำหรับนักศึกษา ชื่อโปรเจกสำหรับพนักงานประจำ เพราะชื่อเล่นซ้ำกันได้ */
 const tagOf = (r: ShiftInstance) => r.gen ?? r.projectName
 
@@ -195,10 +238,13 @@ function Card({
   children,
   unit,
   sized = true,
+  minUnit = '0.5px',
   className = '',
   inner = '',
 }: {
   children: ReactNode
+  /** ขนาดเล็กสุดของ --u ค่าเริ่มต้นครึ่งหนึ่งของขนาดออกแบบ การ์ด QR ที่แบ่งคอลัมน์กับการ์ดลาต้องย่อได้มากกว่านี้ */
+  minUnit?: string
   /** สูตร --u ของการ์ดนี้ เช่น 'min(0.2273cqw,0.1493cqh)' (= 1px เมื่อการ์ดกว้าง 440 สูง 670) */
   unit: string
   /** true = วัดทั้งกว้างและสูง (การ์ดต้องมีความสูงแน่นอน) · false = วัดแค่ความกว้าง (การ์ดสูงตามเนื้อหา) */
@@ -212,7 +258,7 @@ function Card({
         className={`flex min-h-0 w-full flex-col ${sized ? 'h-full' : ''} ${inner}`}
         style={
           {
-            '--u': `clamp(0.5px, ${unit}, 1.75px)`,
+            '--u': `clamp(${minUnit}, ${unit}, 1.75px)`,
             '--spacing': 'calc(var(--u) * 4)',
           } as React.CSSProperties
         }
@@ -225,7 +271,7 @@ function Card({
 
 // สูตร --u ต่อการ์ด: 100/ขนาดออกแบบ (px) ของการ์ดนั้น
 // ขนาดที่เนื้อหาในการ์ดวางพอดีโดยไม่ต้องขึ้นบรรทัดใหม่ การ์ดแคบกว่านี้ทุกอย่างย่อตามสัดส่วนเดียวกัน
-const U_QR = 'min(0.2273cqw, 0.1493cqh)' // 440 × 670
+const U_QR = 'min(0.2273cqw, 0.1235cqh)' // 440 × 810 (รวมนาฬิกาบนสุด และ QR 340)
 const U_LIST = '0.2358cqw' // 424 = แถว "มาแล้ว" ที่ยาวที่สุด (ชื่อ + Gen + รอบ + สาย + เวลา) วางพอดีบรรทัดเดียว
 /** แถบสถิติไม่ได้อยู่ในการ์ด จึงย่อ/ขยายตามความกว้างจอแทน (1px ที่จอกว้าง 1440) */
 const U_SCREEN = 'clamp(0.6px, 0.0694vw, 1.5px)'
@@ -281,7 +327,8 @@ function StatChips({ summary }: { summary?: KioskBoard['summary'] }) {
     <nav
       aria-label="สรุปวันนี้"
       className="panel flex items-center gap-2 rounded-full p-2"
-      style={{ '--u': U_SCREEN, '--spacing': 'calc(var(--u) * 4)' } as React.CSSProperties}
+      // แถบสรุปย่อลง 15% จากขนาดจอ ให้หัวจอกินที่น้อยลง
+      style={{ '--u': `calc(${U_SCREEN} * 0.85)`, '--spacing': 'calc(var(--u) * 4)' } as React.CSSProperties}
     >
       {items.map((c) => {
         const zero = c.n === 0
@@ -314,20 +361,25 @@ function QRCard({
   secondsLeft,
   ttl,
   hasToken,
+  clock,
 }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>
   secondsLeft: number
   ttl: number
   hasToken: boolean
+  /** นาฬิกาและวันที่ แสดงบนสุดของการ์ด */
+  clock: ReactNode
 }) {
   const whole = Math.ceil(secondsLeft)
   const soon = whole <= 5
   return (
     <Card
       unit={U_QR}
+      minUnit="0.25px"
       className="flex-1 min-[1200px]:[container-type:size] max-[1199px]:[container-type:inline-size]"
-      inner="items-center justify-center gap-5 px-8 py-8 text-center"
+      inner="items-center justify-center gap-4 px-8 py-7 text-center"
     >
+      {clock}
       <h2 className="display text-[calc(32*var(--u))] leading-tight font-bold text-text">สแกนเพื่อเช็กชื่อ</h2>
 
       {/*
@@ -335,7 +387,7 @@ function QRCard({
       */}
       <div className="glass-tile rounded-2xl p-3">
         <div className="rounded-lg bg-white p-2.5">
-          <canvas ref={canvasRef} className={`block size-[calc(300*var(--u))] ${hasToken ? '' : 'opacity-0'}`} aria-label="QR สำหรับเช็กชื่อ" />
+          <canvas ref={canvasRef} className={`block size-[calc(340*var(--u))] ${hasToken ? '' : 'opacity-0'}`} aria-label="QR สำหรับเช็กชื่อ" />
         </div>
       </div>
 
@@ -353,12 +405,20 @@ function QRCard({
       </div>
 
       <ol className="grid w-full grid-cols-3 gap-2">
-        {['เปิดกล้องมือถือ', 'สแกน QR', 'ล็อกอิน Google'].map((t, i) => (
-          <li key={t} className="flex flex-col items-center gap-2">
-            <span className="display tnum flex size-9 items-center justify-center rounded-full bg-k-blue-tint text-[calc(18*var(--u))] font-bold text-k-blue">
+        {/* แต่ละคำห้ามตัดกลางคำ ("มือ / ถือ") ตัดบรรทัดได้เฉพาะระหว่างคำ */}
+        {[['เปิดกล้อง', 'มือถือ'], ['สแกน', 'QR'], ['ล็อกอิน', 'Google']].map((words, i) => (
+          <li key={words.join('')} className="flex flex-col items-center gap-2">
+            <span className="display tnum flex size-12 items-center justify-center rounded-full bg-k-blue-tint text-[calc(24*var(--u))] font-bold text-k-blue">
               {i + 1}
             </span>
-            <span className="text-[calc(16*var(--u))] leading-snug text-text">{t}</span>
+            <span className="text-[calc(20*var(--u))] leading-snug font-medium text-text">
+              {words.map((w, j) => (
+                <span key={w}>
+                  {j > 0 && ' '}
+                  <span className="inline-block whitespace-nowrap">{w}</span>
+                </span>
+              ))}
+            </span>
           </li>
         ))}
       </ol>
@@ -389,22 +449,32 @@ function PendingCard({
   absent,
   nowMin,
   roundOf,
+  roundLabelOf,
+  onPick,
 }: {
   rows: ShiftInstance[]
   absent: ShiftInstance[]
   nowMin: number
   roundOf: (r: ShiftInstance) => string | null
+  roundLabelOf: (r: ShiftInstance) => string | null
+  onPick: Pick
 }) {
   const byStart = (x: ShiftInstance, y: ShiftInstance) => minutesOf(x.startTime) - minutesOf(y.startTime) || x.nickname.localeCompare(y.nickname, 'th')
   // คนที่ยังไม่มาอยู่บน คนที่ขาดแล้วอยู่ล่างสุด (แต่ละกลุ่มเรียงตามเวลานัด)
   const list = [...[...rows].sort(byStart), ...[...absent].sort(byStart)]
+  // สองคอลัมน์: แถวแคบ ตัดคำว่า "นัด" และรอบออก เหลือเวลาเริ่ม ให้อยู่บรรทัดเดียว
+  const compact = list.length > TWO_COLUMN_AFTER
   return (
-    <Card unit={U_LIST} sized={false} inner="p-6">
-      <CardHeader icon={<IconPending className="size-6" />} tone="bg-k-orange-tint text-k-orange" title="ยังไม่มา" count={rows.length} />
+    <Card unit={U_LIST} sized={false} className="min-[1200px]:row-span-2" inner="p-6">
+      <CardHeader icon={<IconPending className="size-6" />} tone="bg-k-orange-tint text-k-orange" title="ยังไม่มา"
+        count={rows.length}
+        // ตัวเลขนับเฉพาะคนที่ยังไม่มา (ตรงกับแถบสรุป) คนขาดอยู่ท้ายรายการในการ์ดเดียวกัน จึงบอกจำนวนแยกไว้ด้านขวา
+        aside={absent.length > 0 ? <span className="font-semibold text-k-red">ขาด {absent.length}</span> : undefined}
+      />
       {list.length === 0 ? (
         <p className="text-[calc(18*var(--u))] text-text-dim">มาครบทุกคนแล้ว</p>
       ) : (
-        <ul className="scroll-list grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-2.5 overflow-y-auto pr-1">
+        <ul className={`scroll-list grid min-h-0 flex-1 auto-rows-min overflow-y-auto pr-1 ${compact ? 'grid-cols-2 gap-2' : 'grid-cols-1 gap-2.5'}`}>
           {list.map((r) => {
             const isAbsent = r.status === 'absent'
             // เลยเวลานัดแล้ว: จุดกะพริบเบาๆ (คนที่ขาดแล้วไม่ต้องกะพริบ)
@@ -412,15 +482,18 @@ function PendingCard({
             return (
               <li
                 key={r.shiftId}
-                className={`flex min-w-0 items-center gap-2 rounded-2xl px-3.5 py-2 ${isAbsent ? 'border border-k-red/40 bg-k-red-tint' : PANEL_TILE}`}
+                {...pickable(r, onPick, `${r.nickname} ${tagOf(r)} ${isAbsent ? 'ขาด' : 'ยังไม่มา'} นัด ${roundOf(r) ?? r.startTime}`)}
+                className={`flex min-w-0 cursor-help items-center rounded-2xl py-1.5 ${compact ? 'gap-1.5 px-2.5' : 'gap-2 px-3.5'} ${isAbsent ? 'border border-k-red/40 bg-k-red-tint' : PANEL_TILE}`}
               >
                 <span aria-hidden className={`size-2 shrink-0 rounded-full ${isAbsent ? 'bg-k-red' : 'bg-k-orange-dot'} ${overdue ? 'animate-pulse-soft' : ''}`} />
-                <span className={`min-w-0 truncate text-[calc(18*var(--u))] ${isAbsent ? 'font-bold text-k-red' : 'font-semibold text-text'}`}>{r.nickname}</span>
+                <span className={`truncate text-[calc(15*var(--u))] ${compact ? 'shrink-0' : 'min-w-0'} ${isAbsent ? 'font-bold text-k-red' : 'font-semibold text-text'}`}>{r.nickname}</span>
                 {isAbsent && (
                   <span className="shrink-0 rounded-full bg-k-red px-2 py-0.5 text-[calc(13*var(--u))] font-semibold text-white">ขาด</span>
                 )}
-                <Tag line="border-k-orange-line">{tagOf(r)}</Tag>
-                <span className="tnum ml-auto shrink-0 text-[calc(15*var(--u))] font-semibold whitespace-nowrap text-k-orange">นัด {roundOf(r) ?? r.startTime}</span>
+                <span className={compact ? 'flex min-w-0 overflow-hidden' : 'contents'}>
+                  <Tag line="border-k-orange-line">{tagOf(r)}</Tag>
+                </span>
+                {roundLabelOf(r) && <span className="ml-auto shrink-0 text-[calc(13*var(--u))] font-semibold whitespace-nowrap text-text-dim">{roundLabelOf(r)}</span>}
               </li>
             )
           })}
@@ -431,15 +504,21 @@ function PendingCard({
 }
 
 /** "มาแล้ว": คอลัมน์ขวา สูงเท่าการ์ด QR ล่าสุดอยู่บนสุด เลื่อนในการ์ดเมื่อยาวเกิน */
-function ArrivedCard({ rows, roundOf }: { rows: ShiftInstance[]; roundOf: (r: ShiftInstance) => string | null }) {
+function ArrivedCard({ rows, roundOf, onPick }: { rows: ShiftInstance[]; roundOf: (r: ShiftInstance) => string | null; onPick: Pick }) {
+  // แถวแสดงแค่ชื่อ ป้ายโปรเจก และสถานะ "ทำงานนอกสถานที่" / "สาย" รายละเอียดอื่น (Gen เวลา รอบ ออกงาน) อยู่ในป๊อปอัป
+  const compact = rows.length > TWO_COLUMN_AFTER
   return (
-    <Card unit={U_LIST} sized={false} className="arrived-theme max-h-[75vh] min-[1200px]:max-h-none" inner="p-6">
+    <Card unit={U_LIST} sized={false} className="arrived-theme max-h-[75vh] min-[1200px]:row-span-2 min-[1200px]:max-h-none" inner="p-6">
       <CardHeader icon={<IconCheck className="size-6" />} tone="bg-k-blue-tint text-k-blue" title="มาแล้ว" count={rows.length} aside="ล่าสุดอยู่บนสุด" />
       {rows.length === 0 ? (
         <p className="text-[calc(18*var(--u))] text-text-dim">ยังไม่มีใครสแกน</p>
       ) : (
-        // การ์ดกว้าง (จอแคบกว่า 1200px ที่การ์ดยืดเต็มจอ) แบ่งเป็นหลายคอลัมน์ การ์ดแคบเหลือคอลัมน์เดียว
-        <ul className="scroll-list grid min-h-0 flex-1 auto-rows-min grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))] gap-2.5 overflow-y-auto pr-1">
+        // คนเยอะ: สองคอลัมน์ (ล่าสุดอยู่ซ้ายบน) · คนน้อย: การ์ดกว้าง (จอแคบกว่า 1200px) แบ่งหลายคอลัมน์ การ์ดแคบเหลือคอลัมน์เดียว
+        <ul
+          className={`scroll-list grid min-h-0 flex-1 auto-rows-min overflow-y-auto pr-1 ${
+            compact ? 'grid-cols-2 gap-2' : 'grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))] gap-2.5'
+          }`}
+        >
           {rows.map((r, i) => {
             const latest = i === 0
             const late = r.status === 'late'
@@ -450,10 +529,16 @@ function ArrivedCard({ rows, roundOf }: { rows: ShiftInstance[]; roundOf: (r: Sh
               <li
                 // key ผูกกับกะ: มีคนเช็กชื่อใหม่ = แถวใหม่ถูก mount แอนิเมชันเข้าจึงเล่นครั้งเดียวกับคนนั้น
                 key={r.shiftId}
-                // ป้ายเยอะจนไม่พอในบรรทัดเดียว (เช่น มีรอบ + สาย) ให้ขึ้นบรรทัดใหม่ แทนการบีบชื่อจนอ่านไม่ออก
+                {...pickable(
+                  r,
+                  onPick,
+                  [r.nickname, tagOf(r), offsite ? 'ทำงานนอกสถานที่' : late ? 'มาสาย' : 'มาปกติ', round && `กะ ${round}`, exitedAt ? `ออกงาน ${hhmm(exitedAt)}` : `เข้างาน ${hhmm(r.scannedAt)}`]
+                    .filter(Boolean)
+                    .join(' '),
+                )}
                 // กรอบฟ้าเทา #B5C8D4 · มาสายส้ม #FDD5BA ขอบ #F4A06B · นอกสถานที่เขียว #BFE0DC ขอบ #7FC0B8 (มาก่อนสาย)
                 // แถวล่าสุดขอบหนาสีเดียวกับตัวหนังสือของแถวนั้น
-                className={`flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 rounded-2xl px-3.5 py-2 ${
+                className={`flex min-w-0 cursor-help flex-wrap items-center gap-y-0.5 rounded-2xl py-1.5 ${compact ? 'gap-x-1.5 px-2.5' : 'gap-x-2 px-3.5'} ${
                   offsite ? 'offsite-row bg-arrived-offsite-bg' : late ? 'late-row bg-arrived-late-bg' : 'bg-arrived-bg'
                 } ${
                   latest
@@ -463,15 +548,14 @@ function ArrivedCard({ rows, roundOf }: { rows: ShiftInstance[]; roundOf: (r: Sh
                       }`
                 }`}
               >
-                <span className="max-w-full min-w-0 truncate text-[calc(18*var(--u))] font-semibold text-text">{r.nickname}</span>
-                <Tag line="border-k-blue-tag-line">{tagOf(r)}</Tag>
-                {round && <Tag line="border-k-blue-tag-line">รอบ {round}</Tag>}
-                {offsite && <Tag line="border-k-blue-tag-line">นอกสถานที่</Tag>}
-                {exitedAt && <Tag line="border-k-blue-tag-line">{r.earlyLeaveAt && !r.checkedOutAt ? 'ออกก่อนเวลา' : 'ออกงานแล้ว'}</Tag>}
-                <span className="ml-auto flex shrink-0 items-baseline gap-2">
-                  {late && <span className="text-[calc(14*var(--u))] font-semibold text-k-orange">สาย</span>}
-                  <span className="tnum text-[calc(18*var(--u))] font-semibold text-k-blue">{hhmm(exitedAt ?? r.scannedAt)}</span>
-                </span>
+                <span className="max-w-full shrink-0 truncate text-[calc(15*var(--u))] font-semibold text-text">{r.nickname}</span>
+                <Tag line="border-k-blue-tag-line">{r.projectName}</Tag>
+                {/* สถานะเป็นตัวเล็กบรรทัดล่าง ชิดซ้าย */}
+                {(offsite || late) && (
+                  <span className={`w-full text-[calc(11*var(--u))] leading-tight font-semibold whitespace-nowrap ${offsite ? 'text-arrived-offsite-text' : 'text-k-orange'}`}>
+                    {offsite ? 'ทำงานนอกสถานที่' : 'สาย'}
+                  </span>
+                )}
               </li>
             )
           })}
@@ -482,24 +566,38 @@ function ArrivedCard({ rows, roundOf }: { rows: ShiftInstance[]; roundOf: (r: Sh
 }
 
 /** "ลา": คอลัมน์ขวาสุด คนที่แอดมินบันทึกว่าลาวันนี้ เรียงตามเวลานัด พร้อมเหตุผลที่แอดมินจดไว้ (ถ้ามี) */
-function LeaveCard({ rows, roundOf }: { rows: ShiftInstance[]; roundOf: (r: ShiftInstance) => string | null }) {
+const LEAVE_TYPE: Record<LeaveType, string> = { sick: 'ลาป่วย', personal: 'ลากิจ' }
+const LEAVE_PORTION: Record<LeaveDuration, string> = { full_day: '', morning: 'ครึ่งเช้า', afternoon: 'ครึ่งบ่าย' }
+
+/**
+ * ลาเพราะอะไร: ประเภทจากใบลา (ลาป่วย / ลากิจ + ครึ่งวัน) ถ้าแอดมินกดลาให้เองใช้หมายเหตุของแอดมิน
+ * ไม่แสดงเหตุผลที่พนักงานพิมพ์ในใบลา เพราะจอนี้ติดผนังให้ทุกคนเห็น อาจมีเรื่องสุขภาพส่วนตัว
+ */
+function leaveReason(r: ShiftInstance) {
+  const portion = r.leavePortion ? LEAVE_PORTION[r.leavePortion] : ''
+  if (r.leaveType) return [LEAVE_TYPE[r.leaveType], portion].filter(Boolean).join(' · ')
+  return r.adminNote || ['ลา', portion].filter(Boolean).join(' · ')
+}
+
+function LeaveCard({ rows, onPick }: { rows: ShiftInstance[]; onPick: Pick }) {
   const list = [...rows].sort((x, y) => minutesOf(x.startTime) - minutesOf(y.startTime) || x.nickname.localeCompare(y.nickname, 'th'))
   return (
-    <Card unit={U_LIST} sized={false} className="max-h-[75vh] min-[1200px]:max-h-none" inner="p-6">
+    // 30% ล่างของคอลัมน์ซ้าย ใต้การ์ด QR (จอ ≥1200px) รายชื่อยาวเลื่อนในการ์ด
+    <Card unit={U_LIST} sized={false} className="max-h-[75vh] min-[1200px]:col-start-1 min-[1200px]:row-start-2 min-[1200px]:max-h-none" inner="p-6 min-[1200px]:h-full">
       <CardHeader icon={<IconLeave className="size-6" />} tone="bg-leave-row-bg text-leave-row-text" title="ลา" count={list.length} />
       {list.length === 0 ? (
         <p className="text-[calc(18*var(--u))] text-text-dim">วันนี้ไม่มีใครลา</p>
       ) : (
-        <ul className="scroll-list grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-2.5 overflow-y-auto pr-1">
+        <ul className="scroll-list grid min-h-0 flex-1 auto-rows-min grid-cols-1 gap-1.5 overflow-y-auto pr-1">
           {list.map((r) => (
             // พื้นเหลือง #FCD9A3 ขอบ #F0B25C ตัวหนังสือ #B45309
-            <li key={r.shiftId} className="leave-row flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-2xl border border-leave-row-line bg-leave-row-bg px-3.5 py-2">
-              <span className="min-w-0 truncate text-[calc(18*var(--u))] font-semibold text-text">{r.nickname}</span>
-              <Tag line="border-rule">{tagOf(r)}</Tag>
-              <span className="tnum ml-auto shrink-0 text-[calc(15*var(--u))] font-semibold whitespace-nowrap text-text-dim">
-                {roundOf(r) ?? `${r.startTime}–${r.endTime}`}
-              </span>
-              {r.adminNote && <span className="w-full truncate text-[calc(14*var(--u))] text-text-dim">{r.adminNote}</span>}
+            <li
+              key={r.shiftId}
+              {...pickable(r, onPick, `${r.nickname} ${tagOf(r)} ${leaveReason(r)}`)}
+              className="leave-row flex min-w-0 cursor-help items-center gap-2.5 rounded-xl border border-leave-row-line bg-leave-row-bg px-3 py-1.5 leading-tight"
+            >
+              <span className="min-w-0 truncate text-[calc(15*var(--u))] leading-tight font-semibold text-text">{r.nickname}</span>
+              <span className="ml-auto min-w-0 shrink truncate text-right text-[calc(13*var(--u))] leading-tight font-medium text-text-dim">{leaveReason(r)}</span>
             </li>
           ))}
         </ul>
@@ -511,15 +609,102 @@ function LeaveCard({ rows, roundOf }: { rows: ShiftInstance[]; roundOf: (r: Shif
 /** ป้ายกลุ่ม (Gen / โปรเจก) พื้นขาว ตัวหนังสือสีรอง อ่านชัด เพราะชื่อเล่นซ้ำกันได้ */
 function Tag({ children, line }: { children: ReactNode; line: string }) {
   return (
-    <span className={`tnum shrink-0 rounded-full border bg-white px-2 py-0.5 text-[calc(13*var(--u))] font-medium whitespace-nowrap text-text-dim ${line}`}>
+    <span className={`tnum shrink-0 rounded-full border bg-white px-1.5 py-px text-[calc(11*var(--u))] leading-tight font-medium whitespace-nowrap text-text-dim ${line}`}>
       {children}
     </span>
   )
 }
 
+/** แถวรายชื่อ: เอาเมาส์ชี้หรือโฟกัสด้วย Tab แล้วขึ้นรายละเอียด ออกแล้วซ่อน · จอสัมผัสไม่มี hover จึงแตะเพื่อเปิดแทน */
+type Pick = { show: (r: ShiftInstance, el: HTMLElement) => void; hide: () => void }
+
+/** label = ข้อความที่โปรแกรมอ่านหน้าจออ่าน เช่น "ยูริ Gen 7 มาปกติ เข้างาน 16:18" */
+function pickable(r: ShiftInstance, onPick: Pick, label: string) {
+  return {
+    tabIndex: 0,
+    'aria-label': label,
+    'aria-describedby': POPOVER_ID,
+    onPointerEnter: (e: React.PointerEvent<HTMLElement>) => e.pointerType === 'mouse' && onPick.show(r, e.currentTarget),
+    onPointerLeave: (e: React.PointerEvent<HTMLElement>) => e.pointerType === 'mouse' && onPick.hide(),
+    onFocus: (e: React.FocusEvent<HTMLElement>) => onPick.show(r, e.currentTarget),
+    onBlur: () => onPick.hide(),
+    onClick: (e: React.MouseEvent<HTMLElement>) => onPick.show(r, e.currentTarget),
+    onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => e.key === 'Escape' && onPick.hide(),
+  }
+}
+
+const POPOVER_ID = 'kiosk-person-popover'
+
+const PERSON_STATUS: Record<ShiftInstance['status'], { label: string; tone: string }> = {
+  ontime: { label: 'มาปกติ', tone: 'bg-ontime-bg text-ontime-ink' },
+  late: { label: 'มาสาย', tone: 'bg-late-bg text-late-ink' },
+  absent: { label: 'ขาด', tone: 'bg-absent-bg text-absent-ink' },
+  leave: { label: 'ลา', tone: 'bg-leave-row-bg text-leave-row-text' },
+  pending: { label: 'ยังไม่มา', tone: 'bg-k-orange-tint text-k-orange' },
+  offsite: { label: 'ทำงานนอกสถานที่', tone: 'bg-arrived-offsite-bg text-arrived-offsite-text' },
+}
+
+/** ป๊อปอัปรายละเอียดข้างแถวที่ชี้อยู่: แท็ก (Gen / โปรเจก) สถานะ และเวลา ไม่บังการเอาเมาส์ไปชี้แถวอื่น */
+function PersonPopover({ row, round, anchor }: { row: ShiftInstance; round: string | null; anchor: DOMRect }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+  // วางด้านขวาของแถว ถ้าไม่พอวางด้านซ้าย ถ้าไม่พอทั้งคู่วางใต้แถว แล้วดันให้อยู่ในจอเสมอ
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const gap = 12
+    const { width, height } = el.getBoundingClientRect()
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    let left = anchor.right + gap
+    let top = anchor.top + anchor.height / 2 - height / 2
+    if (left + width > vw - gap) left = anchor.left - gap - width
+    if (left < gap) {
+      left = Math.min(Math.max(anchor.left, gap), vw - width - gap)
+      top = anchor.bottom + gap
+      if (top + height > vh - gap) top = anchor.top - gap - height
+    }
+    setPos({ left, top: Math.min(Math.max(top, gap), vh - height - gap) })
+  }, [anchor])
+
+  const status = PERSON_STATUS[row.status]
+  const exit = row.checkedOutAt ? ['ออกงาน', hhmm(row.checkedOutAt)] : row.earlyLeaveAt ? ['แจ้งกลับก่อน', hhmm(row.earlyLeaveAt)] : null
+  const details: [string, string][] = [
+    ...(row.gen ? ([['Gen', row.gen]] as [string, string][]) : []),
+    ['โปรเจก', row.projectName],
+    ['เวลานัด', round ?? `${row.startTime}–${row.endTime}`],
+    ...(row.scannedAt ? ([['เข้างาน', hhmm(row.scannedAt)]] as [string, string][]) : []),
+    ...(exit ? ([exit] as [string, string][]) : []),
+    ...(row.status === 'leave' ? ([['ลาเพราะ', leaveReason(row)]] as [string, string][]) : []),
+  ]
+  return (
+    <div
+      ref={ref}
+      id={POPOVER_ID}
+      role="tooltip"
+      style={pos ?? { left: 0, top: 0, visibility: 'hidden' }}
+      className="pointer-events-none fixed z-50 w-[300px] panel-modal rounded-2xl p-5 text-text animate-fade"
+    >
+      <p className="display truncate text-[26px] leading-tight font-bold">{row.nickname}</p>
+      <span className={`mt-1.5 inline-flex items-center gap-2 rounded-full px-3 py-0.5 text-[15px] font-semibold ${status.tone}`}>
+        <span aria-hidden className="size-2 rounded-full bg-current" />
+        {status.label}
+      </span>
+      <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 border-t border-rule pt-4 text-[16px]">
+        {details.map(([k, v]) => (
+          <div key={k} className="contents">
+            <dt className="text-text-dim">{k}</dt>
+            <dd className="tnum font-semibold">{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
 function MessageCard({ children, dim }: { children: ReactNode; dim?: boolean }) {
   return (
-    <Card unit={U_LIST} sized={false} className="min-h-[40vh] min-[1200px]:col-span-3" inner="items-center justify-center p-8 text-center">
+    <Card unit={U_LIST} sized={false} className="min-h-[40vh] min-[1200px]:col-span-2 min-[1200px]:row-span-2" inner="items-center justify-center p-8 text-center">
       <p className={dim ? 'text-[calc(20*var(--u))] text-text-dim' : 'display text-[calc(32*var(--u))] font-semibold text-text'}>{children}</p>
     </Card>
   )

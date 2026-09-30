@@ -3,7 +3,7 @@
 import { and, asc, eq, gte, lte } from 'drizzle-orm'
 import type { AppSettings, AutoCheckoutMode, Holiday } from '../contract.js'
 import { db, schema } from '../db/index.js'
-import { asBody, badRequest, notFound, reqString } from '../lib/http.js'
+import { asBody, badRequest, conflict, notFound, reqString } from '../lib/http.js'
 import { randomToken } from '../lib/id.js'
 import { displayUrl, getSettings, updateSettings } from '../lib/settings.js'
 import { isValidDate } from '../lib/time.js'
@@ -25,6 +25,28 @@ export async function readAppSettings(): Promise<AppSettings> {
   }
 }
 
+/** ค่าตัวเลขจากฟอร์ม: ช่องว่าง null หรือค่าที่ไม่ใช่ตัวเลข/ข้อความ ถือว่าไม่ถูกต้อง (Number('') เป็น 0 จึงต้องกันเอง) */
+function numberOf(v: unknown) {
+  if (typeof v === 'number') return v
+  if (typeof v === 'string' && v.trim() !== '') return Number(v)
+  return Number.NaN
+}
+
+/** ลิงก์ LINE OA ถูกแสดงเป็นปุ่มหลังเช็กเอาต์ ต้องเป็น https เท่านั้น กัน javascript: และลิงก์แปลก */
+export function parseLineOaUrl(v: unknown): string | null {
+  const s = typeof v === 'string' ? v.trim() : ''
+  if (!s) return null
+  if (s.length > 500) throw badRequest('ลิงก์ LINE OA ยาวเกิน 500 ตัวอักษร')
+  let url: URL
+  try {
+    url = new URL(s)
+  } catch {
+    throw badRequest('ลิงก์ LINE OA ต้องเป็น URL ที่ขึ้นต้นด้วย https://')
+  }
+  if (url.protocol !== 'https:') throw badRequest('ลิงก์ LINE OA ต้องขึ้นต้นด้วย https://')
+  return url.toString()
+}
+
 export async function patchAppSettings(adminEmail: string, raw: unknown): Promise<AppSettings> {
   const b = asBody(raw)
   const patch: Partial<{
@@ -38,16 +60,16 @@ export async function patchAppSettings(adminEmail: string, raw: unknown): Promis
     maxLocationAccuracyMeters: number
   }> = {}
   if (b.qrTokenTtl !== undefined) {
-    const ttl = Number(b.qrTokenTtl)
+    const ttl = numberOf(b.qrTokenTtl)
     if (!Number.isInteger(ttl) || ttl < 10 || ttl > 300) throw badRequest('อายุ token ต้องอยู่ระหว่าง 10 ถึง 300 วินาที')
     patch.qrTokenTtl = ttl
   }
   if (b.lineOaUrl !== undefined) {
-    patch.lineOaUrl = b.lineOaUrl ? String(b.lineOaUrl).trim() : null
+    patch.lineOaUrl = parseLineOaUrl(b.lineOaUrl)
   }
   const intSetting = (key: 'lateGraceMinutes' | 'checkinRadiusMeters' | 'maxLocationAccuracyMeters', min: number, max: number, label: string) => {
     if (b[key] === undefined) return
-    const value = Number(b[key])
+    const value = numberOf(b[key])
     if (!Number.isInteger(value) || value < min || value > max) throw badRequest(`${label}ต้องอยู่ระหว่าง ${min} ถึง ${max}`)
     patch[key] = value
   }
@@ -61,12 +83,12 @@ export async function patchAppSettings(adminEmail: string, raw: unknown): Promis
     patch.autoCheckoutMode = b.autoCheckoutMode
   }
   if (b.officeLatitude !== undefined) {
-    const value = Number(b.officeLatitude)
+    const value = numberOf(b.officeLatitude)
     if (!Number.isFinite(value) || value < -90 || value > 90) throw badRequest('ละติจูดสำนักงานไม่ถูกต้อง')
     patch.officeLatitude = value
   }
   if (b.officeLongitude !== undefined) {
-    const value = Number(b.officeLongitude)
+    const value = numberOf(b.officeLongitude)
     if (!Number.isFinite(value) || value < -180 || value > 180) throw badRequest('ลองจิจูดสำนักงานไม่ถูกต้อง')
     patch.officeLongitude = value
   }
@@ -96,11 +118,10 @@ export async function addHoliday(adminEmail: string, raw: unknown): Promise<Holi
   const b = asBody(raw)
   if (!isValidDate(b.date)) throw badRequest('เลือกวันที่')
   const name = reqString(b, 'name', 'ชื่อวันหยุด', 120)
-  const [h] = await db
-    .insert(schema.holidays)
-    .values({ date: b.date, name })
-    .onConflictDoUpdate({ target: schema.holidays.date, set: { name } })
-    .returning()
+  // วันที่เป็น primary key หนึ่งวันมีวันหยุดได้รายการเดียว เดิมเขียนทับชื่อเงียบๆ ตอนนี้แจ้งให้ลบของเดิมก่อน
+  const [existing] = await db.select().from(schema.holidays).where(eq(schema.holidays.date, b.date))
+  if (existing) throw conflict(`วันที่นี้เป็นวันหยุด "${existing.name}" อยู่แล้ว`)
+  const [h] = await db.insert(schema.holidays).values({ date: b.date, name }).returning()
   await audit(db, { adminEmail, action: 'holiday_add', date: h.date, after: h })
   return h
 }

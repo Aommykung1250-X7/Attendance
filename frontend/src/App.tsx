@@ -13,6 +13,7 @@ import ImportExcel from './pages/admin/ImportExcel'
 import Report from './pages/admin/Report'
 import Settings from './pages/admin/Settings'
 import RequestPage from './pages/Request'
+import HistoryPage from './pages/History'
 import Requests from './pages/admin/Requests'
 import { loginUrl } from './lib/api'
 
@@ -35,6 +36,7 @@ function AppRoutes() {
         <Route path="/checkin" element={<CheckIn />} />
         <Route path="/offsite" element={<Navigate to="/request" replace />} />
         <Route path="/request" element={<RequestPage />} />
+        <Route path="/history" element={<HistoryPage />} />
         <Route path="/auth/error" element={<AuthError />} />
         <Route path="/admin" element={<AdminLayout />}>
           <Route index element={<Today />} />

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../../lib/api'
 import { shortDate } from '../../lib/format'
+import { coordError, INT_RULES, intError, lineOaUrlError } from '../../lib/settingsRules'
 import type { AppSettings, AutoCheckoutMode, Holiday } from '../../lib/types'
 import { Button, Card, ErrorNote, Field, Input, Loading, PageHeader } from '../../components/ui'
 import { Toast, useNotify } from '../../components/notify'
@@ -113,9 +114,11 @@ export default function Settings() {
               <Field label="QR เปลี่ยนทุกกี่วินาที" hint="ค่าเริ่มต้น 30 วินาที ยิ่งสั้นยิ่งยากที่จะถ่ายรูป QR ส่งต่อให้คนที่ไม่ได้อยู่ในออฟฟิศ">
                 {(id) => (
                   <div className="flex gap-2">
-                    <Input id={id} type="number" min={10} max={300} value={ttl} onChange={(e) => setTtl(e.target.value)} className="w-28" />
+                    <Input id={id} type="number" min={INT_RULES.qrTokenTtl.min} max={INT_RULES.qrTokenTtl.max} value={ttl} onChange={(e) => setTtl(e.target.value)} className="w-28" />
                     <Button
                       onClick={async () => {
+                        const invalid = intError('qrTokenTtl', ttl)
+                        if (invalid) return notify.toast(invalid, { tone: 'error' })
                         try {
                           setS(await api.updateSettings({ qrTokenTtl: Number(ttl) }))
                           setToast('บันทึกแล้ว')
@@ -139,6 +142,8 @@ export default function Settings() {
                     <Input id={id} type="url" placeholder="https://line.me/R/ti/p/@..." value={lineOaUrl} onChange={(e) => setLineOaUrl(e.target.value)} className="flex-1" />
                     <Button
                       onClick={async () => {
+                        const invalid = lineOaUrlError(lineOaUrl)
+                        if (invalid) return notify.toast(invalid, { tone: 'error' })
                         try {
                           setS(await api.updateSettings({ lineOaUrl: lineOaUrl.trim() || null }))
                           setToast('บันทึกลิงก์ LINE OA แล้ว')
@@ -202,15 +207,22 @@ export default function Settings() {
             <h2 className="display text-lg font-semibold">เวลาและพื้นที่เช็กอิน</h2>
             <p className="mt-1 text-[15px] text-text-dim">กำหนดเวลาผ่อนผันและขอบเขต GPS ที่ใช้ตรวจตอนเช็กอินผ่าน QR</p>
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-              <Field label="อนุโลมเข้าสาย (นาที)">{(id) => <Input id={id} type="number" min={0} max={120} value={lateGrace} onChange={(e) => setLateGrace(e.target.value)} />}</Field>
-              <Field label="ละติจูดสำนักงาน">{(id) => <Input id={id} type="number" step="any" value={officeLat} onChange={(e) => setOfficeLat(e.target.value)} />}</Field>
-              <Field label="ลองจิจูดสำนักงาน">{(id) => <Input id={id} type="number" step="any" value={officeLng} onChange={(e) => setOfficeLng(e.target.value)} />}</Field>
-              <Field label="รัศมีเช็กอิน (เมตร)">{(id) => <Input id={id} type="number" min={10} value={radius} onChange={(e) => setRadius(e.target.value)} />}</Field>
-              <Field label="GPS คลาดเคลื่อนได้ (เมตร)">{(id) => <Input id={id} type="number" min={1} value={accuracy} onChange={(e) => setAccuracy(e.target.value)} />}</Field>
+              <Field label="อนุโลมเข้าสาย (นาที)">{(id) => <Input id={id} type="number" min={INT_RULES.lateGraceMinutes.min} max={INT_RULES.lateGraceMinutes.max} value={lateGrace} onChange={(e) => setLateGrace(e.target.value)} />}</Field>
+              <Field label="ละติจูดสำนักงาน">{(id) => <Input id={id} type="number" step="any" min={-90} max={90} value={officeLat} onChange={(e) => setOfficeLat(e.target.value)} />}</Field>
+              <Field label="ลองจิจูดสำนักงาน">{(id) => <Input id={id} type="number" step="any" min={-180} max={180} value={officeLng} onChange={(e) => setOfficeLng(e.target.value)} />}</Field>
+              <Field label="รัศมีเช็กอิน (เมตร)">{(id) => <Input id={id} type="number" min={INT_RULES.checkinRadiusMeters.min} max={INT_RULES.checkinRadiusMeters.max} value={radius} onChange={(e) => setRadius(e.target.value)} />}</Field>
+              <Field label="GPS คลาดเคลื่อนได้ (เมตร)">{(id) => <Input id={id} type="number" min={INT_RULES.maxLocationAccuracyMeters.min} max={INT_RULES.maxLocationAccuracyMeters.max} value={accuracy} onChange={(e) => setAccuracy(e.target.value)} />}</Field>
             </div>
             <Button
               className="mt-4"
               onClick={async () => {
+                const invalid =
+                  intError('lateGraceMinutes', lateGrace) ??
+                  coordError('officeLatitude', officeLat) ??
+                  coordError('officeLongitude', officeLng) ??
+                  intError('checkinRadiusMeters', radius) ??
+                  intError('maxLocationAccuracyMeters', accuracy)
+                if (invalid) return notify.toast(invalid, { tone: 'error' })
                 try {
                   const next = await api.updateSettings({
                     lateGraceMinutes: Number(lateGrace),
@@ -288,6 +300,7 @@ function AutoCheckoutChoice({
 }
 
 function Holidays({ onToast }: { onToast: (m: string) => void }) {
+  const notify = useNotify()
   const [year, setYear] = useState(new Date().getFullYear())
   const [list, setList] = useState<Holiday[] | null>(null)
   const [date, setDate] = useState('')
@@ -302,6 +315,8 @@ function Holidays({ onToast }: { onToast: (m: string) => void }) {
 
   const add = async () => {
     if (!date || !name.trim()) return setError('เลือกวันที่และใส่ชื่อวันหยุด')
+    const existing = list?.find((h) => h.date === date)
+    if (existing) return setError(`วันที่นี้เป็นวันหยุด "${existing.name}" อยู่แล้ว`)
     try {
       await api.addHoliday({ date, name: name.trim() })
       setDate('')
@@ -355,8 +370,18 @@ function Holidays({ onToast }: { onToast: (m: string) => void }) {
               <Button
                 size="sm"
                 variant="ghost"
+                aria-label={`ลบวันหยุด ${h.name}`}
                 onClick={async () => {
-                  await api.removeHoliday(h.date)
+                  const ok = await notify.confirm({
+                    title: `ลบวันหยุด "${h.name}"?`,
+                    body: `วันที่ ${shortDate(h.date)} จะกลับเป็นวันทำงานปกติ คนที่มีกะวันนั้นต้องเช็กชื่อตามเดิม`,
+                    confirmLabel: 'ลบวันหยุด',
+                    busyLabel: 'กำลังลบ',
+                    danger: true,
+                    action: () => api.removeHoliday(h.date),
+                  })
+                  if (!ok) return
+                  onToast('ลบวันหยุดแล้ว')
                   load()
                 }}
               >
