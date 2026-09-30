@@ -26,16 +26,31 @@ describe('ส่งออกรายงานรายเดือน', () => {
       [dates[1], [{ row: entry('1', 'offsite') }, { row: entry('2', 'pending') }]],
       [dates[2], [{ row: entry('1', 'absent') }, { row: entry('2', 'ontime') }]],
     ])
-    const report = buildMonthlyExport(dates, [employee('1', 'ต้น'), employee('2', 'แนน')], byDate)
+    const report = buildMonthlyExport('2026-09', dates, [employee('1', 'ต้น'), employee('2', 'แนน')], byDate)
     expect(report.people[0].cells).toEqual(['สาย / ลา', 'นอกสถานที่', 'ขาด'])
     expect(report.people[0].counts).toEqual({ expected: 3, normal: 1, late: 1, absent: 1, leave: 1 })
     expect(report.people[1].cells).toEqual(['', 'ยังไม่มา', 'ปกติ'])
     expect(report.people[1].counts).toEqual({ expected: 2, normal: 1, late: 0, absent: 0, leave: 0 })
-    expect(exportTables(report).daily[0]).toEqual(['ชื่อ', '01/09', '02/09', '03/09'])
+    expect(exportTables(report).daily[0]).toEqual(['ชื่อ (กันยายน 2569)', '01/09', '02/09', '03/09'])
+  })
+
+  it('แสดงชื่อวันเสาร์อาทิตย์และวันหยุดพิเศษ โดยนับเสาร์อาทิตย์เฉพาะวันที่มีกะ', () => {
+    const dates = ['2026-09-05', '2026-09-06', '2026-09-07']
+    const report = buildMonthlyExport('2026-09', dates, [employee('1', 'ต้น'), employee('2', 'แนน')], new Map([
+      [dates[0], [{ row: entry('1', 'ontime') }]],
+      [dates[1], [{ row: entry('2', 'late') }]],
+    ]), new Map([[dates[2], 'วันหยุดพิเศษ']]))
+    expect(exportTables(report).daily[0]).toEqual([
+      'ชื่อ (กันยายน 2569)', 'เสาร์ 05/09', 'อาทิตย์ 06/09', '07/09 (วันหยุดพิเศษ)',
+    ])
+    expect(report.people[0].cells).toEqual(['ปกติ', '', 'วันหยุด: วันหยุดพิเศษ'])
+    expect(report.people[0].counts.expected).toBe(1)
+    expect(report.people[1].cells).toEqual(['', 'สาย', 'วันหยุด: วันหยุดพิเศษ'])
+    expect(report.people[1].counts.expected).toBe(1)
   })
 
   it('Excel มีสองชีต และ ZIP มี CSV สองไฟล์พร้อมหัวตาราง', async () => {
-    const report = buildMonthlyExport(['2026-09-01'], [employee('1', 'ต้น')], new Map([
+    const report = buildMonthlyExport('2026-09', ['2026-09-01'], [employee('1', 'ต้น')], new Map([
       ['2026-09-01', [{ row: entry('1', 'ontime') }]],
     ]))
     const workbook = new ExcelJS.Workbook()
@@ -45,7 +60,7 @@ describe('ส่งออกรายงานรายเดือน', () => {
 
     const zip = await JSZip.loadAsync(await exportCsvZip(report))
     expect(Object.keys(zip.files).sort()).toEqual(['daily.csv', 'summary.csv'])
-    expect(await zip.file('daily.csv')!.async('string')).toContain('ชื่อ,01/09\r\nต้น,ปกติ')
+    expect(await zip.file('daily.csv')!.async('string')).toContain('ชื่อ (กันยายน 2569),01/09\r\nต้น,ปกติ')
     expect(await zip.file('summary.csv')!.async('string')).toContain('ต้น,1,1,0,0,0')
   })
 })

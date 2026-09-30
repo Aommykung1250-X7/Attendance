@@ -64,7 +64,7 @@ export default function Report() {
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `attendance-${month}.${format === 'xlsx' ? 'xlsx' : 'zip'}`
+      link.download = `รายงาน-${monthLabel(month).replace(/\s+/g, '-')}.${format === 'xlsx' ? 'xlsx' : 'zip'}`
       document.body.appendChild(link)
       link.click()
       link.remove()
