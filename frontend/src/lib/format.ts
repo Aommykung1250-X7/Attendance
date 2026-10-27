@@ -65,7 +65,14 @@ export function shortWeekdayDate(date: string) {
   return `${w}. ${shortDate(date)}`
 }
 
-const stampFmt = new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: TZ })
+const fullFmt = new Intl.DateTimeFormat('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+/** "อังคารที่ 27 ตุลาคม 2569" ใช้บนหัวจอ "เช็คชื่อวันนี้" */
+export function fullThaiDate(date: string) {
+  const p = Object.fromEntries(fullFmt.formatToParts(new Date(`${date}T00:00:00Z`)).map((x) => [x.type, x.value]))
+  return `${p.weekday.replace(/^วัน/, '')}ที่ ${p.day} ${p.month} ${p.year}`
+}
+
+const stampFmt =new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: TZ })
 export const stamp = (iso: string) => stampFmt.format(new Date(iso))
 
 /** ชื่อที่แสดง ต้องมี Gen กำกับเพราะชื่อเล่นซ้ำกันได้ */
