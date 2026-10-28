@@ -184,6 +184,14 @@ function stateFor(shift: Shift, date: string): State {
         const e = minutesOf(shift.endTime) - 60
         s.earlyLeaveAt = `${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}:00`
       }
+      // วันนี้: ให้บางคนออกงานแล้ว (และบางคนแจ้งกลับก่อน) จอ "เช็คชื่อวันนี้" จะได้เห็นกลุ่ม "ออกงานแล้ว"
+      // เวลาออกอยู่หลังเข้างานอย่างน้อย 30 นาที และไม่เกินเวลาตอนนี้
+      const out = Math.min(minutesOf(shift.endTime), nowMin - 5 - (h % 30))
+      if (date === today && out >= m + 30 && (h % 3 === 0 || (h % 3 === 1 && h % 4 === 0))) {
+        const t = `${String(Math.floor(out / 60)).padStart(2, '0')}:${String(out % 60).padStart(2, '0')}:00`
+        if (h % 3 === 0) s.checkedOutAt = t
+        else s.earlyLeaveAt = t
+      }
     }
   } else if (date < today && h >= 94) {
     s = { ...s, override: 'leave', note: 'โทรมาแจ้งลา' }

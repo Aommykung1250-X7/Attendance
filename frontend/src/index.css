@@ -152,6 +152,35 @@
   --color-arrived-offsite-line: #7fc0b8;
   --color-arrived-offsite-text: #0f766e;
 
+  /*
+   * จอ "เช็คชื่อวันนี้" (/display): พื้นครีม การ์ดขาวขอบครีมเข้ม ไม่มีเงา สีหลักแดงเข้ม
+   * คู่พื้น/ตัวอักษรของสถานะทุกคู่คอนทราสต์ ≥ 7:1 · ตัวหนังสือรอง #6B5E54 บนขาว 6.2:1 บนครีม 5.6:1
+   */
+  --color-dash-page: #f7f2ea;
+  --color-dash-line: #ede4d8;
+  --color-dash-ink: #2a211c;
+  --color-dash-dim: #6b5e54;
+  --color-dash-brand: #a3170f;
+  --color-dash-track: #f1e7dc;
+  --color-dash-faded: #faf7f2;
+  --color-dash-present-bg: #e8eef5;
+  --color-dash-present-ink: #1b3554;
+  --color-dash-pending-bg: #fbede9;
+  --color-dash-pending-ink: #8e1a12;
+  --color-dash-late-bg: #fdebdd;
+  --color-dash-late-ink: #8a3a06;
+  --color-dash-leave-bg: #fbf1d3;
+  --color-dash-leave-ink: #6e4b00;
+  --color-dash-absent-bg: #f3e3e3;
+  --color-dash-absent-ink: #7c1414;
+  --color-dash-offsite-bg: #d6eeeb;
+  --color-dash-offsite-ink: #0f5a52;
+  --color-dash-neutral-bg: #efe9e1;
+  --color-dash-neutral-ink: #4f453e;
+  /* ป้ายสังกัด: พื้นเทาฟ้าทึบ */
+  --color-dash-org-bg: #dce5ee;
+  --color-dash-org-ink: #1b3554;
+
   @keyframes pop {
     from {
       opacity: 0;
